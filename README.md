@@ -49,6 +49,12 @@ git remote -v
 git pull upstream main      # fetch the new week
 ```
 
+On Windows PowerShell, you can run the repository helper instead:
+
+```powershell
+.\scripts\update-from-upstream.ps1
+```
+
 If that pull reports a conflict, it is nearly always in a lab file you edited.
 Your work is in your fork's history and is not lost — the recovery is:
 
