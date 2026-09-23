@@ -1,0 +1,7 @@
+Which storage plane holds which data? Why are model files not stored in Postgres?
+answers: A Postgres tárolja az MLflow metaadatait, például a kísérletek nevét, a futtatási azonosítókat, a paramétereket, a mutatókat és a címkéket. A MinIO tárolja a nagy méretű artefaktfájlokat, például a betanított modelleket, a grafikonokat és egyéb kimeneti adatokat.
+
+A modellfájlokat nem a Postgres tárolja, mivel azok nagy méretű bináris objektumok. Az objektumtárolás jobban megfelel a skálázható, hatékony és tartós artefakt-tároláshoz, míg a Postgres a strukturált metaadatok és a tranzakciós lekérdezésekre van optimalizálva.
+
+Now that runs are centrally recorded, what can you answer that you could not answer after Week 1's terminal-scrollback experiment? (Think about: reproducibility, shareability, comparability.) 
+answers: Az MLflow minden futtatásról tartós, megosztható feljegyzést biztosít, beleértve a paramétereket, a mutatókat, a kísérletet és a mentett modell-artefaktumot. Ez lehetővé teszi a futtatások reprodukálását, a különböző konfigurációk és modellek összehasonlítását, valamint annak megállapítását, hogy mely beállítások hozták a legjobb eredményeket. Például a „seed-42” és a „seed-7” futtatások közvetlenül összehasonlíthatók, anélkül, hogy a terminál görgetési előzményeire kellene támaszkodni, amelyek ideiglenesek, és megosztásuk vagy keresésük nehézkes.
