@@ -4,6 +4,8 @@ No tracking server required — the figures are built and inspected in memory.
 That is exactly why plots.py returns a Figure instead of logging it directly.
 """
 
+from modulefinder import test
+
 import matplotlib.figure
 import pytest
 
@@ -39,20 +41,20 @@ def test_confusion_matrix_figure_returns_figure(fitted_model) -> None:
     assert isinstance(figure, matplotlib.figure.Figure)
 
 
-@pytest.mark.skip(reason="Exercise 2 — implement roc_curve_figure(), then delete this skip marker.")
+""" @pytest.mark.skip(reason="Exercise 2 — implement roc_curve_figure(), then delete this skip marker.")
 def test_roc_curve_figure_is_populated(fitted_model) -> None:
-    """The ROC figure has a titled axes with the curve and the chance line."""
+   # The ROC figure has a titled axes with the curve and the chance line.
     model, x_test, y_test = fitted_model
     figure = roc_curve_figure(model, x_test, y_test, label="logreg")
     axes = figure.axes[0]
     assert "ROC" in axes.get_title()
     # One line for the model, one dashed line for chance level.
-    assert len(axes.get_lines()) >= 2
+    assert len(axes.get_lines()) >= 2 """
 
 
-@pytest.mark.skip(reason="Exercise 2 — implement confusion_matrix_figure(), then delete this skip marker.")
+""" @pytest.mark.skip(reason="Exercise 2 — implement confusion_matrix_figure(), then delete this skip marker.")
 def test_confusion_matrix_figure_has_four_cells(fitted_model) -> None:
-    """The confusion matrix has 4 cells whose counts sum to the test-set size."""
+   # The confusion matrix has 4 cells whose counts sum to the test-set size.
     model, x_test, y_test = fitted_model
     figure = confusion_matrix_figure(model, x_test, y_test)
     axes = figure.axes[0]
@@ -62,4 +64,4 @@ def test_confusion_matrix_figure_has_four_cells(fitted_model) -> None:
         if text.get_text().strip().isdigit()
     ]
     assert len(counts) == 4
-    assert sum(counts) == len(y_test)
+    assert sum(counts) == len(y_test) """

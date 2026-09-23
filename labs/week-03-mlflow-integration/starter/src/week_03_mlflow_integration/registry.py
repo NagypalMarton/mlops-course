@@ -50,8 +50,24 @@ def register_best_model(settings: Settings, run_id: str) -> ModelVersion | None:
     tests/test_registry.py.
     """
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-    _ = run_id  # silence the unused-argument warning until you implement
-    return None  # placeholder — the CLI reports this as "not implemented yet"
+    #_ = run_id  # silence the unused-argument warning until you implement
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+
+    model_uri = f"runs:/{run_id}/model"
+
+    version = mlflow.register_model(
+        model_uri=model_uri,
+        name=settings.registered_model_name,
+    )
+
+    client = MlflowClient(settings.mlflow_tracking_uri)
+    client.set_model_version_tag(
+        name=settings.registered_model_name,
+        version=version.version,
+        key="registered_from",
+        value="week3-sweep",
+    )
+    return version  # None is a placeholder — the CLI reports this as "not implemented yet"
 
 
 def latest_version(settings: Settings) -> ModelVersion:

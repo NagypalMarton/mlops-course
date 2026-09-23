@@ -3,6 +3,10 @@
         "/^uv run pytest tests/ -v$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^uv run python src/main\\.py best$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

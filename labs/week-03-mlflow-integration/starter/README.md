@@ -52,6 +52,7 @@ This lab follows official tutorials with minimal changes — keep them open as r
 5. **The Pima diabetes dataset** instead of the tutorial's toy dataset, per the course's
    one-running-example rule.
 
+
 ## Prerequisites
 
 - Docker Desktop (macOS/Windows) or Docker Engine + Compose plugin (Linux) — version 24+
@@ -155,7 +156,7 @@ two new things:
 - **a signature and input example** — these make the logged model self-describing.
 
 ```bash
-make run
+uv run python src/main.py run
 ```
 
 Then open the run in the UI. Confirm you see a populated params table, five metrics, your
@@ -170,7 +171,7 @@ Implement `roc_curve_figure` and `confusion_matrix_figure` in
 Both functions **return** a `Figure` and never call `plt.show()` or `plt.savefig()`.
 
 ```bash
-make run
+uv run python src/main.py run
 ```
 
 In the UI, the run's Artifacts tab should show `plots/roc_curve.png` and
@@ -184,7 +185,7 @@ regularisation strengths for logistic regression and two forest sizes. The docst
 what the loop must produce; `log_training_run`'s keyword arguments are how.
 
 ```bash
-make sweep
+uv run python src/main.py sweep
 ```
 
 In the UI: expand the `sweep` run to see its six children, select all six, and click
@@ -197,8 +198,8 @@ Implement `search_sweep_runs` in `tracking.py`: one `mlflow.search_runs` call wh
 Syntax reference: https://mlflow.org/docs/latest/ml/search/search-runs/
 
 ```bash
-make best                  # ranked by F1
-make best METRIC=roc_auc   # the same six runs, ranked by ROC-AUC
+uv run python src/main.py best                  # ranked by F1
+uv run python src/main.py best METRIC=roc_auc   # the same six runs, ranked by ROC-AUC
 ```
 
 The filter string is sent to the tracking server, which evaluates it against Postgres, so
@@ -222,8 +223,8 @@ You will use that `run_id` in Exercise 5 and that justification in Exercise 6.
 Implement `register_best_model` in `src/week_03_mlflow_integration/registry.py`.
 
 ```bash
-make register RUN_ID=<the run_id you chose in Exercise 4>
-make register RUN_ID=<the same run_id>    # a second time
+uv run python src/main.py register RUN_ID=<the run_id you chose in Exercise 4>
+uv run python src/main.py register RUN_ID=<the same run_id>    # a second time
 ```
 
 You now have versions **1** and **2**, from the same run. Versions are immutable and
@@ -239,7 +240,7 @@ default is exactly the decision Exercise 4 asked you not to delegate.)
 version 2, recording your Exercise 4 justification as evidence:
 
 ```bash
-make promote VERSION=2 REASON="<your one-sentence justification>"
+uv run python src/main.py promote VERSION=2 REASON="<your one-sentence justification>"
 ```
 
 Promotion does two separable things, and only the second is an API call:
@@ -252,7 +253,7 @@ Promotion does two separable things, and only the second is an API call:
 **Part 2 — trace, and take the last hop yourself.** Implement `trace_alias`, then:
 
 ```bash
-make trace
+uv run python src/main.py trace
 ```
 
 It walks backwards: alias → version → `run_id` → params, metrics, and the `git_commit`
