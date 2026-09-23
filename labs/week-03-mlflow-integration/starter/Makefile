@@ -1,4 +1,4 @@
-.PHONY: up down down-v logs ps sync run sweep best register promote trace all test test-fast
+.PHONY: up down down-v logs ps sync run sweep best register promote trace rollback query all test test-fast
 
 ## Bring up all four services and wait for healthchecks
 up:
@@ -32,21 +32,29 @@ run:
 sweep:
 	uv run python src/main.py sweep
 
-## Exercise 4 — server-side search: find and print the best run
+## Exercise 4 — server-side search over the latest sweep   (make best METRIC=roc_auc)
 best:
-	uv run python src/main.py best
+	uv run python src/main.py best $(if $(METRIC),--metric $(METRIC))
 
-## Exercise 5 — register the best run's model (creates a new version)
+## Exercise 5 — register the run you chose (a new version)   (make register RUN_ID=<id>)
 register:
-	uv run python src/main.py register
+	uv run python src/main.py register $(if $(RUN_ID),--run-id $(RUN_ID))
 
-## Exercise 6 — promote the newest version to @staging with governance tags
+## Exercise 6 — promote a version to @staging and @champion  (make promote VERSION=2 REASON="...")
 promote:
-	uv run python src/main.py promote
+	uv run python src/main.py promote $(if $(VERSION),--version $(VERSION)) $(if $(REASON),--reason "$(REASON)")
 
-## Exercise 6 — traceability check: alias -> version -> run -> params
+## Exercise 6 — traceability check: alias -> version -> run -> params -> commit
 trace:
 	uv run python src/main.py trace
+
+## Exercise 7 — move both aliases back                       (make rollback VERSION=1 REASON="...")
+rollback:
+	uv run python src/main.py rollback $(if $(VERSION),--version $(VERSION)) $(if $(REASON),--reason "$(REASON)")
+
+## Stretch — any search_runs filter                          (make query FILTER="..." ORDER_BY="...")
+query:
+	uv run python src/main.py query --filter "$(FILTER)" $(if $(ORDER_BY),--order-by "$(ORDER_BY)")
 
 ## Exercises 1-6 end to end
 all:

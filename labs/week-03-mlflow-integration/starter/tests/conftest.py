@@ -54,4 +54,6 @@ def staging_version(live_settings, sweep_results):
     """Register the best run and promote it, once per session."""
     best_run_id = tracking.find_best_run(live_settings)
     version = registry.register_best_model(live_settings, best_run_id)
-    return registry.promote_to_staging(live_settings, version.version)
+    return registry.promote_to_staging(
+        live_settings, version.version, reason="pytest session"
+    )
