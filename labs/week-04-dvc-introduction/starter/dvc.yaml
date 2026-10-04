@@ -25,3 +25,32 @@ stages:
   # find which files each one reads and writes, and which params it uses. Keep the
   # small JSON files in Git (`cache: false`); metrics/metrics.json goes under
   # `metrics:`.
+  train:
+    cmd: uv run python src/main.py train
+    deps:
+      - data/processed/train.csv
+      - src/week_04_dvc_introduction/pipeline.py
+      - src/week_04_dvc_introduction/model.py
+      - src/week_04_dvc_introduction/data.py
+    params:
+      - random_seed
+      - train.family
+      - train.C
+      - train.max_iter
+    outs:
+      - models/model.pkl
+      - models/mlflow_run_id.json:
+          cache: false
+
+  evaluate:
+    cmd: uv run python src/main.py evaluate
+    deps:
+      - models/model.pkl
+      - models/mlflow_run_id.json
+      - data/processed/test.csv
+      - src/week_04_dvc_introduction/pipeline.py
+      - src/week_04_dvc_introduction/model.py
+      - src/week_04_dvc_introduction/data.py
+    metrics:
+      - metrics/metrics.json:
+          cache: false

@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^uv run python -m py_compile src\\\\week_04_dvc_introduction\\\\dvc_link\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
