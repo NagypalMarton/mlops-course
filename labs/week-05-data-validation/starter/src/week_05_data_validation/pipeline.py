@@ -86,6 +86,7 @@ def prepare(settings: Settings) -> dict:
     """
     # TODO(student) Exercise 4: stop here unless the last validation passed.
     # `_require_validated` does that check.
+    _require_validated(settings)
     source = _require_measurements(settings)
     frame = load_measurements(source)
     train_frame, test_frame = split_measurements(frame, settings)
@@ -104,7 +105,6 @@ def prepare(settings: Settings) -> dict:
         "test_path": str(test_path),
     }
 
-
 def prepare_model_input(frame) -> tuple:
     """Turn a processed split into model input. Returns (features, labels, report).
 
@@ -114,10 +114,17 @@ def prepare_model_input(frame) -> tuple:
     # frame[MODEL_INPUT_COLUMNS] with missing values. Check the result against
     # ModelInput, and raise ValidationFailed if it fails. Return the features
     # as float64, the type `predict_one` sends, and the ModelInput report.
-    features = frame[FEATURE_COLUMNS]
-    labels = frame[TARGET_COLUMN]
-    return features, labels, {}
+    model_frame = to_nullable(frame[MODEL_INPUT_COLUMNS])
+    report = validate_frame(model_frame, ModelInput, "model input")
+    if not report["passed"]:
+        raise ValidationFailed(
+            f"Model input validation failed with "
+            f"{report['n_failure_cases']} failure case(s)."
+        )
 
+    features = model_frame[FEATURE_COLUMNS].astype("float64")
+    labels = model_frame[TARGET_COLUMN]
+    return features, labels, report
 
 def train(settings: Settings) -> dict:
     """Stage 2: fit the model, and record the data version and verdict on the MLflow run.
