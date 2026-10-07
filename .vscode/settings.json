@@ -7,6 +7,10 @@
         "/^uv run python src/main\\.py best$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^Set-Location 'C:\\\\Users\\\\nagyp\\\\source\\\\repos\\\\mlops-course\\\\labs\\\\week-05-data-validation\\\\starter'; uv run pytest tests/test_schemas\\.py tests/test_validation\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

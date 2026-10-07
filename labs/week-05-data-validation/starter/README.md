@@ -96,7 +96,7 @@ so `verify-data` prints `workspace matches pointer: True`.
 ```bash
 uv run pytest tests/
 ```
-
+ 
 Expected: **40 passed, 52 skipped**.
 
 Start the stack with `make up` and leave it running.

@@ -67,7 +67,15 @@ def validate(settings: Settings) -> dict:
     # Write the report to settings.validation_report_path. Then, if the data
     # failed, raise ValidationFailed with a message that names the number of
     # failure cases. Return the report.
-    raise NotImplementedError("pipeline.validate is not written yet (Exercise 4).")
+    report = validate_frame(frame, RawMeasurements, source.name)
+    report["sentinel_zeros"] = sentinel_counts(frame)
+    write_report(report, settings.validation_report_path)
+
+    if not report["passed"]:
+        raise ValidationFailed(
+            f"Validation failed with {report['n_failure_cases']} failure case(s)."
+        )
+    return report
 
 
 def prepare(settings: Settings) -> dict:
