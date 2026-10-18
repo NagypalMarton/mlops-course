@@ -1,0 +1,25 @@
+{
+  "verdict": "GO",
+  "criteria_version": "1.0.0",
+  "primary_metric": null,
+  "summary": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 2
+  },
+  "deltas": {},
+  "checks": [
+    {
+      "id": "regression",
+      "kind": "regression",
+      "status": "skipped",
+      "reason": "acceptance.regression declares no primary_metric/max_drop"
+    },
+    {
+      "id": "slice",
+      "kind": "slice",
+      "status": "skipped",
+      "reason": "no slice report \u2014 the evaluate stage produced no metrics/slices.json"
+    }
+  ]
+}
