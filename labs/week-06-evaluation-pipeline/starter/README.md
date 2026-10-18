@@ -214,19 +214,19 @@ a felülvizsgáló, amikor megkérdezi, miért engedtük ki a modellt.
    ```
    Minden szelet átmegy, beleértve a 19 beteget tartalmazó `50+`, valamint az egy pozitív
    esetet tartalmazó `under_normal` csoportot is. A feltételek nélküli kapu mindent átenged.
-   2. A `params.yaml` fájlban, a `criteria_version` alatt add hozzá az `acceptance` blokkot:
+2. A `params.yaml` fájlban, a `criteria_version` alatt add hozzá az `acceptance` blokkot:
       a minimumokat a `minimum`, a bajnokkal való összehasonlítást a `regression`, a
       csoportszabályokat pedig a `slice_rules` alatt. Előbb futtasd a `make slices` parancsot,
       és minden értéket a kiírt számok alapján válassz ki. Az a minimum, amelyet a mindenkit
       „nem cukorbetegnek” jósló modell is teljesít, nem valódi minimum.
-   3. Olvasd el az `evaluate_gate` és a `_minimum_checks` függvényt a
+3. Olvasd el az `evaluate_gate` és a `_minimum_checks` függvényt a
       `src/week_06_evaluation_pipeline/gates.py` fájlban. Ezek teljesek. A `_minimum_checks`
       megmutatja egy ellenőrzés alakját: `id`, `status` (pass, fail vagy skipped) és `reason`.
-   4. Ugyanebben a fájlban töltsd ki a `_regression_checks` TODO-ját. Ez dönti el, mikor jelent
+4. Ugyanebben a fájlban töltsd ki a `_regression_checks` TODO-ját. Ez dönti el, mikor jelent
       hibát a bajnokhoz képesti visszaesés.
-   5. Ugyanebben a fájlban töltsd ki a `_slice_checks` két TODO-ját: először a támogatási
+5. Ugyanebben a fájlban töltsd ki a `_slice_checks` két TODO-ját: először a támogatási
       szabályokat, amelyek kihagyják a megítéléshez túl kicsi csoportot, majd az F1-szabályokat.
-   6. Futtasd újra a kaput:
+6. Futtasd újra a kaput:
    ```bash
    make gate
    ```
