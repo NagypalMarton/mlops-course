@@ -9,8 +9,8 @@ stages:
       size: 31750
     - path: src/week_06_evaluation_pipeline/pipeline.py
       hash: md5
-      md5: a77cdc6c2c7f7ef39441dabe55d73242
-      size: 15161
+      md5: b4b9dc37a20e4c0b680dd4a0c842cff4
+      size: 15272
     - path: src/week_06_evaluation_pipeline/schemas.py
       hash: md5
       md5: deba0228a30a5ee015ce41d55d09e4c5
@@ -41,8 +41,8 @@ stages:
       size: 2323
     - path: src/week_06_evaluation_pipeline/pipeline.py
       hash: md5
-      md5: a77cdc6c2c7f7ef39441dabe55d73242
-      size: 15161
+      md5: b4b9dc37a20e4c0b680dd4a0c842cff4
+      size: 15272
     params:
       params.yaml:
         prepare.test_size: 0.25
@@ -73,8 +73,8 @@ stages:
       size: 3184
     - path: src/week_06_evaluation_pipeline/pipeline.py
       hash: md5
-      md5: a77cdc6c2c7f7ef39441dabe55d73242
-      size: 15161
+      md5: b4b9dc37a20e4c0b680dd4a0c842cff4
+      size: 15272
     - path: src/week_06_evaluation_pipeline/schemas.py
       hash: md5
       md5: deba0228a30a5ee015ce41d55d09e4c5
@@ -94,8 +94,8 @@ stages:
     outs:
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: ea94c2a26e0109af4ae58b16243f3b55
-      size: 50
+      md5: 1f2aff2896b8a4b488f2b8605205ad59
+      size: 86
     - path: models/model.pkl
       hash: md5
       md5: 3d5bd652cdc84a2b829fefae3786921d
@@ -109,16 +109,16 @@ stages:
       size: 8041
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: ea94c2a26e0109af4ae58b16243f3b55
-      size: 50
+      md5: 1f2aff2896b8a4b488f2b8605205ad59
+      size: 86
     - path: models/model.pkl
       hash: md5
       md5: 3d5bd652cdc84a2b829fefae3786921d
       size: 2273
     - path: src/week_06_evaluation_pipeline/evaluation.py
       hash: md5
-      md5: f9324c8926d5f4f8999e1221e0779052
-      size: 8465
+      md5: 79a595d9a065636e43d155aa49300074
+      size: 9188
     - path: src/week_06_evaluation_pipeline/fairness.py
       hash: md5
       md5: a8ea270ae85fe750dc31e1534f9a8309
@@ -129,8 +129,8 @@ stages:
       size: 3184
     - path: src/week_06_evaluation_pipeline/pipeline.py
       hash: md5
-      md5: a77cdc6c2c7f7ef39441dabe55d73242
-      size: 15161
+      md5: b4b9dc37a20e4c0b680dd4a0c842cff4
+      size: 15272
     - path: src/week_06_evaluation_pipeline/schemas.py
       hash: md5
       md5: deba0228a30a5ee015ce41d55d09e4c5
@@ -184,5 +184,5 @@ stages:
       size: 112
     - path: metrics/slices.json
       hash: md5
-      md5: c443b04d0fc26b0a5a4573a78e0082a1
-      size: 4
+      md5: 5763870f2c2f3df7324391d18a0fbc03
+      size: 5138
