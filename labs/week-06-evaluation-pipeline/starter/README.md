@@ -1,80 +1,82 @@
 ---
 description:
-  title: "Week 6 Lab: Evaluation Pipeline"
+  title: "6. heti labor: Értékelési folyamat"
   summary: |
-    Cut the test set into groups and score each one, write the acceptance
-    criteria and the go/no-go gate for the diabetes model, and make `dvc repro`
-    stop and `register` refuse when the model fails. Then check the model's
-    errors per group, and optionally move the bar with a better model.
+    Bontsd csoportokra a teszthalmazt, pontozd mindegyiket, írd le a cukorbetegség-modell
+    elfogadási feltételeit és GO/NO-GO kapuját, valamint érd el, hogy a `dvc repro`
+    leálljon, a `register` pedig elutasítsa a hibás modellt. Ezután vizsgáld meg a modell
+    csoportonkénti hibáit, és opcionálisan emeld a lécet egy jobb modellel.
 ---
 
-# Week 6 Lab: Evaluation Pipeline
+# 6. heti labor: Értékelési folyamat
 
-In Week 5 you put a gate in front of the data. A model can still be unsafe to release.
-One accuracy number hides the groups of patients the model is wrong about, and nobody
-has written down what "good enough" means.
+Az 5. héten kaput tettél az adatok elé. Egy modell ettől még nem biztos, hogy biztonságosan
+kiadható. Egyetlen pontossági érték elrejti, hogy mely betegcsoportoknál téved a modell,
+és senki nem írta le, mit jelent az, hogy „elég jó”.
 
-Today you cut the test set into groups and score each group. You write the acceptance
-criteria and a gate that says GO or NO-GO. You make the gate stop `dvc repro` and make
-`register` and `promote` refuse a model without a GO. At the end you check the model's
-errors per group, and optionally raise the bar with a better model.
+Ma csoportokra bontod a teszthalmazt, és minden csoportot lepontozol. Leírod az elfogadási
+feltételeket, valamint a GO vagy NO-GO döntést hozó kaput. Beállítod, hogy a kapu leállítsa
+a `dvc repro` futását, a `register` és a `promote` pedig GO nélküli modellt utasítson el.
+A végén megvizsgálod a modell csoportonkénti hibáit, és opcionálisan egy jobb modellel
+emeled a lécet.
 
-Background for every exercise: the Week 6 lecture and `docs/notes/week-06-notes.md`.
+Minden gyakorlathoz háttéranyag: a 6. heti előadás és a `docs/notes/week-06-notes.md`.
 
-## Based on
+## Alapul szolgáló anyagok
 
 - **scikit-learn, model evaluation:** https://scikit-learn.org/stable/modules/model_evaluation.html
-- **fairlearn, assessment guide** (`MetricFrame` and the fairness metrics): https://fairlearn.org/main/user_guide/assessment/perform_fairness_assessment.html
-- **Google, Rules of Machine Learning**, rules 12–19 on metrics and slicing: https://developers.google.com/machine-learning/guides/rules-of-ml
-- **Breck et al., The ML Test Score**, the rubric this lab implements: https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/
+- **fairlearn, értékelési útmutató** (`MetricFrame` és a méltányossági metrikák): https://fairlearn.org/main/user_guide/assessment/perform_fairness_assessment.html
+- **Google, a gépi tanulás szabályai**, a metrikákról és szeletelésről szóló 12–19. szabály: https://developers.google.com/machine-learning/guides/rules-of-ml
+- **Breck és munkatársai, The ML Test Score**, a labor által megvalósított ellenőrzőlista: https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/
 
-**Deviations from the references:**
+**Eltérések a hivatkozott anyagoktól:**
 
-1. **Two rules on top of fairlearn.** fairlearn compares every group, however small, and
-   reports a TPR of 0.0 for a group with no positives. `fairness_report` reports such a rate
-   as undefined (None), and leaves out of the gaps any group under 5 rows or without both
-   classes, so a gap is never set by two patients or by a rate that does not exist.
-2. **The gate is a DVC stage, but nothing depends on it.** Week 5's gate worked because
-   `prepare` depended on the verdict file. `gate` is the last stage, so `register` and
-   `promote` read its verdict instead (Exercise 4).
-3. **You choose the thresholds after you see the numbers.** In a real project the team
-   agrees them before the run.
+1. **Két szabály a fairlearn fölött.** A fairlearn minden csoportot összehasonlít, bármilyen
+   kicsi is, és 0,0-s TPR-t jelez egy pozitív példát sem tartalmazó csoportra.
+   A `fairness_report` az ilyen rátát nem definiáltként (None) jelzi, továbbá kihagyja a
+   különbségek számításából az 5 sornál kisebb, illetve nem mindkét osztályt tartalmazó
+   csoportokat. Így egy különbséget soha nem két beteg, illetve nem létező ráta határoz meg.
+2. **A kapu DVC-szakasz, de semmi nem függ tőle.** Az 5. heti kapu azért működött, mert a
+   `prepare` függött az eredményfájltól. A `gate` az utolsó szakasz, ezért a `register` és a
+   `promote` helyette közvetlenül az eredményét olvassa (4. gyakorlat).
+3. **A küszöbértékeket a számok megismerése után választod ki.** Egy valódi projektben a
+   csapat még a futtatás előtt megállapodik bennük.
 
-## Prerequisites
+## Előfeltételek
 
 - `uv`: https://docs.astral.sh/uv/getting-started/installation/
-- Docker Desktop, or Docker Engine with the Compose plugin, version 24+. You need it from
-  Exercise 4 on.
-- Ports **5500, 5510, 5511, 5532** free.
-- **Stop your Week 5 stack first.** It uses the same ports:
+- Docker Desktop, vagy Docker Engine Compose bővítménnyel, legalább 24-es verzióban. A 4.
+  gyakorlattól lesz rá szükséged.
+- A **5500, 5510, 5511, 5532** portok legyenek szabadok.
+- **Először állítsd le az 5. heti stacket.** Ugyanezeket a portokat használja:
   ```bash
   cd ../../week-05-data-validation/solution && docker compose down
   ```
 
 ---
 
-## Step 1: dependencies
+## 1. lépés: függőségek
 
 ```bash
 uv sync --all-groups
 ```
 
-New this week: **`fairlearn`**, which scores every group in one call (`MetricFrame`) and
-computes the fairness metrics.
+Újdonság ezen a héten: **`fairlearn`**, amely egyetlen hívással (`MetricFrame`) pontozza
+az összes csoportot, és kiszámítja a méltányossági metrikákat.
 
-## Step 2: configuration
+## 2. lépés: konfiguráció
 
 ```bash
 cp .env.example .env
 ```
 
-Set `MLFLOW_MODEL_OWNER` to your name. The experiment is now `diabetes-week6`.
+Állítsd az `MLFLOW_MODEL_OWNER` értékét a nevedre. A kísérlet neve most `diabetes-week6`.
 
-## Step 3: the dataset
+## 3. lépés: az adathalmaz
 
-The DVC setup comes with this lab: `.dvc/config` names the Silo remote, and
-`data/measurements.csv.dvc` is the pointer. Build the data from the two batches in
-`data/raw/`, then run the pipeline:
+A DVC-beállítás ehhez a laborhoz tartozik: a `.dvc/config` nevezi meg a Silo távoli tárhelyet,
+a `data/measurements.csv.dvc` pedig a mutató. Állítsd elő az adatokat a `data/raw/` két
+batchéből, majd futtasd a folyamatot:
 
 ```bash
 make data-v2
@@ -82,409 +84,433 @@ make verify-data
 make repro
 ```
 
-Expected output of `make verify-data`: `workspace matches pointer: True`. `make repro` runs
-`validate`, `prepare`, `train` and `evaluate`, and prints accuracy 0.7656, precision 0.6964,
-recall 0.5821, F1 0.6341 and ROC AUC 0.8345. These are the Week 5 numbers: this week does
-not change the model.
+A `make verify-data` várt kimenete: `workspace matches pointer: True`. A `make repro` a
+`validate`, `prepare`, `train` és `evaluate` szakaszokat futtatja, és 0.7656 pontosságot,
+0.6964 precisiont, 0.5821 recallt, 0.6341 F1-et, valamint 0.8345 ROC AUC-t ír ki. Ezek az
+5. hét számai: ezen a héten nem módosítjuk a modellt.
 
-## Step 4: tests before you start
+## 4. lépés: tesztek a kezdés előtt
 
 ```bash
 uv run pytest tests/
 ```
 
-Expected: **136 passed, 31 skipped**.
+Várt eredmény: **136 passed, 31 skipped**.
 
-Start the Docker stack (MLflow and its stores) with `make up` and leave it running. Exercises 4 and 6 need it.
+Indítsd el a Docker-stacket (az MLflow-t és a tárolóit) a `make up` paranccsal, és hagyd
+futni. A 4. és 6. gyakorlathoz szükség van rá.
 
 ---
 
-## Exercises
+## Gyakorlatok
 
-Do them in order. Exercises 2, 4 and 5 ask for a **written answer**: write it in
-`answers.md` in this folder and **commit it with your code**. Exercise 6 is optional.
-Exercises 1–3 and 5 need no Docker.
+Sorrendben végezd el őket. A 2., 4. és 5. gyakorlat **írásos választ** kér: írd a választ
+ebben a mappában az `answers.md` fájlba, és **commitold a kódoddal együtt**. A 6. gyakorlat
+opcionális. Az 1–3. és az 5. gyakorlathoz nincs szükség Dockerre.
 
 | Block | Exercises | Time |
 | --- | --- | --- |
-| Setup (Steps 1–4) | — | 10 min |
-| Slices | 1–2 | 25 min |
-| The gate | 3–4 | 35 min |
-| Fairness | 5 | 15 min |
-| Finish: commit and submit | — | 5 min |
-| Optional: the ratchet | 6 | 15 min |
+| Beállítás (1–4. lépés) | — | 10 perc |
+| Szeletek | 1–2 | 25 perc |
+| A kapu | 3–4 | 35 perc |
+| Méltányosság | 5 | 15 perc |
+| Befejezés: commit és beadás | — | 5 perc |
+| Opcionális: a racsni | 6 | 15 perc |
 
-### Exercise 1: slice the test set (≈ 15 min)
+### 1. gyakorlat: a teszthalmaz szeletelése (≈ 15 perc)
 
-One accuracy number is an average over all 192 test patients. To find a group the model is
-wrong about, you score the same test set group by group. Teams do this when a model is fine
-in the dashboard and a clinic, a market or an age group complains.
+Egyetlen pontossági érték mind a 192 tesztbeteg átlaga. Annak megállapításához, hogy melyik
+csoportnál téved a modell, ugyanazt a teszthalmazt csoportonként pontozod. A csapatok akkor
+tesznek így, amikor a modell a műszerfalon jónak tűnik, de egy klinika, piac vagy korcsoport
+panaszt tesz.
 
-**Do:**
+**Teendők:**
 
-1. Read `slice_labels` in `src/week_06_evaluation_pipeline/evaluation.py`. It is complete.
-   It turns one slice definition from `params.yaml` (under `evaluation`) into a group label
-   for each row. Look at how a BMI of 0 gets the label `missing`, not the lowest band.
-2. In the same file, implement `group_scores` with fairlearn's `MetricFrame`. It scores
-   every group of one slice in one call and returns a table with one row per group.
-   `group_metrics` below it turns that table into the JSON records.
-3. In `pipeline.py`, fill in the arguments of the `slice_report` call in `evaluate`.
-4. Run the pipeline and print the table:
+1. Olvasd el a `slice_labels` függvényt a `src/week_06_evaluation_pipeline/evaluation.py`
+   fájlban. Teljes. A `params.yaml` (az `evaluation` alatt) egyik szeletdefiníciójából
+   minden sorhoz csoportcímkét készít. Figyeld meg, hogy a 0 BMI-hez a `missing` címke
+   tartozik, nem a legalacsonyabb sáv.
+2. Ugyanebben a fájlban valósítsd meg a `group_scores` függvényt a fairlearn
+   `MetricFrame` osztályával. Egy hívással pontozza egy szelet minden csoportját, és
+   csoportonként egy sort tartalmazó táblázatot ad vissza. Az alatta lévő `group_metrics`
+   alakítja át ezt a táblázatot JSON-rekordokká.
+3. A `pipeline.py` fájlban töltsd ki a `slice_report` `evaluate`-beli hívásának argumentumait.
+4. Futtasd a folyamatot, és írasd ki a táblázatot:
    ```bash
    make repro
    make slices
    ```
-   Expected output: `make repro` prints `10 slice group(s) across 3 axes -> metrics/slices.json`,
-   and `make slices` prints a table for each of the three slices, with `n` and `pos` on every row.
+   Várt kimenet: a `make repro` kiírja: `10 slice group(s) across 3 axes -> metrics/slices.json`,
+   a `make slices` pedig mindhárom szelethez egy táblázatot ír ki, minden sorban `n` és `pos`
+   értékkel.
 
-**Check:**
+**Ellenőrzés:**
 
-- Delete the Exercise 1 skip markers in `tests/test_evaluation.py`.
-- Run `uv run pytest tests/test_evaluation.py`.
-  Expected output: `16 passed`
-- Run `make slices`. The first line of the output is:
+- Töröld az 1. gyakorlathoz tartozó kihagyásjelölőket a `tests/test_evaluation.py` fájlból.
+- Futtasd a `uv run pytest tests/test_evaluation.py` parancsot.
+  Várt kimenet: `16 passed`
+- Futtasd a `make slices` parancsot. A kimenet első sora:
   ```text
   192 rows, 67 positive (34.9% prevalence)
   ```
-  The age band `50+` has `n` 19, and the BMI band `under_normal` has `n` 30 and `pos` 1.
+  Az `50+` korosztályban `n` 19, az `under_normal` BMI-sávban pedig `n` 30 és `pos` 1.
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "Slice metrics in code" and "Which BMI group is a patient with no BMI in?"
-- Notes: "Slices and support" and "Slice the raw values"
-- fairlearn docs: https://fairlearn.org/main/user_guide/assessment/perform_fairness_assessment.html
-- scikit-learn docs: the model evaluation guide (link above)
-- If the `missing` BMI group is absent from the table, check which frame you slice.
+- Előadás: „Szeletmetrikák a kódban” és „Melyik BMI-csoportba kerül a BMI nélküli beteg?”
+- Jegyzetek: „Szeletek és elemszám” és „A nyers értékek szeletelése”
+- fairlearn-dokumentáció: https://fairlearn.org/main/user_guide/assessment/perform_fairness_assessment.html
+- scikit-learn-dokumentáció: a modellértékelési útmutató (fenti link)
+- Ha a `missing` BMI-csoport hiányzik a táblázatból, ellenőrizd, melyik dataframe-et szeleteled.
 
-### Exercise 2: read the slice table (≈ 10 min) *(written answer)*
+### 2. gyakorlat: a szelettáblázat értelmezése (≈ 10 perc) *(írásos válasz)*
 
-Two things in the table are invisible in the aggregate row. Reading a slice table fast is
-what you do when a reviewer asks "is it good for everyone?" and you have five minutes.
+A táblázat két dolga nem látható az összesítő sorban. A szelettáblázat gyors értelmezésére
+akkor van szükség, amikor egy felülvizsgáló megkérdezi: „mindenki számára jó?”, és öt perced van.
 
-**Do:**
+**Teendők:**
 
-1. Run `make slices`. On every row, read `n` and `pos` first, then compare the metrics with
-   the `aggregate` line.
-2. Find the group with the lowest ROC AUC. Note its `n`, and compare its `fpr` with the
-   `fpr` of the `21-29` group.
-3. Find the group with an F1 of 0.0000 and a ROC AUC of 1.0000, and look at its `pos`.
+1. Futtasd a `make slices` parancsot. Minden sorban először az `n` és a `pos` értéket olvasd
+   el, majd hasonlítsd össze a metrikákat az `aggregate` sorral.
+2. Keresd meg a legalacsonyabb ROC AUC-vel rendelkező csoportot. Jegyezd fel az `n` értékét,
+   és hasonlítsd össze az `fpr` értékét a `21-29` csoport `fpr` értékével.
+3. Keresd meg azt a csoportot, ahol az F1 0.0000, a ROC AUC pedig 1.0000, és nézd meg a
+   `pos` értékét.
 
-**Check:**
+**Ellenőrzés:**
 
-- You can name the worst group, its `n`, and its ROC AUC against the aggregate 0.8345.
+- Meg tudod nevezni a legrosszabb csoportot, annak `n` értékét, és össze tudod vetni a ROC
+  AUC-jét az összesített 0.8345 értékkel.
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "How many patients make a slice?" and "Always check what was skipped"
-- Notes: "Slices and support"
-- ROC AUC does not use the 0.5 threshold. F1 does.
+- Előadás: „Hány beteg alkot egy szeletet?” és „Mindig ellenőrizd, mit hagytál ki”
+- Jegyzetek: „Szeletek és elemszám”
+- A ROC AUC nem használja a 0.5-ös küszöbértéket, az F1 viszont igen.
 
-**Written answer** (in `answers.md`):
+**Írásos válasz** (az `answers.md` fájlban):
 
-1. Which group is the model worst on, and by how much against the aggregate? How far can
-   you trust that gap, given the group's `n`?
-2. What can you do with this finding now, and what would you need before you act on it?
-3. One group has an F1 of 0.0000 and a ROC AUC of 1.0000 on the same patients. How can both
-   be correct, and what do they tell you about that group?
+1. Melyik csoporton teljesít a legrosszabbul a modell, és mennyivel marad el az összesítéstől?
+   A csoport `n` értékét figyelembe véve mennyire bízhatsz ebben a különbségben?
+2. Mit tehetsz most ezzel a megállapítással, és mire lenne szükséged ahhoz, hogy cselekedj?
+3. Egy csoportban ugyanazokon a betegeken az F1 0.0000, a ROC AUC pedig 1.0000. Hogyan
+   lehet mindkettő helyes, és mit árulnak el a csoportról?
 
-### Exercise 3: write the acceptance criteria and the gate (≈ 20 min)
+### 3. gyakorlat: az elfogadási feltételek és a kapu megírása (≈ 20 perc)
 
-A release needs an answer to "do we ship it?" that a person agreed on in advance and that
-lives in Git. You write the criteria in `params.yaml` and the rules that apply them.
-This is the file a reviewer reads when someone asks why a model was allowed out.
+Egy kiadáshoz előre egyeztetett, Gitben tárolt válasz kell arra, hogy „kiadjuk?”. A feltételeket
+a `params.yaml` fájlba, az őket alkalmazó szabályokat pedig a kódba írod. Ezt a fájlt olvassa
+a felülvizsgáló, amikor megkérdezi, miért engedtük ki a modellt.
 
-**Do:**
+**Teendők:**
 
-1. Run the gate before you write any criteria:
+1. Futtasd a kaput, mielőtt feltételeket írnál:
    ```bash
    make gate
    ```
-   Expected output: the first line is
+   Várt kimenet: az első sor:
    ```text
    GO — 10 passed, 0 failed, 1 SKIPPED (criteria v1.0.0)
    ```
-   Every slice passes, including `50+` with 19 patients and `under_normal` with one
-   positive. A gate without criteria lets everything through.
-2. In `params.yaml`, add the `acceptance` block under `criteria_version`: the floors in
-   `minimum`, the champion comparison in `regression`, and the group rules in
-   `slice_rules`. Run `make slices` first, and choose each value from the numbers it prints.
-   A floor that a model predicting "no diabetes" for everyone clears is not a floor.
-3. Read `evaluate_gate` and `_minimum_checks` in `src/week_06_evaluation_pipeline/gates.py`.
-   They are complete. `_minimum_checks` shows the shape of one check: an `id`, a `status`
-   (pass, fail or skipped) and a `reason`.
-4. In the same file, fill in the TODO in `_regression_checks`. It decides when a drop
-   against the champion fails.
-5. In the same file, fill in the two TODOs in `_slice_checks`: first the support rules,
-   which skip a group too small to judge, then the F1 rules.
-6. Run the gate again:
+   Minden szelet átmegy, beleértve a 19 beteget tartalmazó `50+`, valamint az egy pozitív
+   esetet tartalmazó `under_normal` csoportot is. A feltételek nélküli kapu mindent átenged.
+   2. A `params.yaml` fájlban, a `criteria_version` alatt add hozzá az `acceptance` blokkot:
+      a minimumokat a `minimum`, a bajnokkal való összehasonlítást a `regression`, a
+      csoportszabályokat pedig a `slice_rules` alatt. Előbb futtasd a `make slices` parancsot,
+      és minden értéket a kiírt számok alapján válassz ki. Az a minimum, amelyet a mindenkit
+      „nem cukorbetegnek” jósló modell is teljesít, nem valódi minimum.
+   3. Olvasd el az `evaluate_gate` és a `_minimum_checks` függvényt a
+      `src/week_06_evaluation_pipeline/gates.py` fájlban. Ezek teljesek. A `_minimum_checks`
+      megmutatja egy ellenőrzés alakját: `id`, `status` (pass, fail vagy skipped) és `reason`.
+   4. Ugyanebben a fájlban töltsd ki a `_regression_checks` TODO-ját. Ez dönti el, mikor jelent
+      hibát a bajnokhoz képesti visszaesés.
+   5. Ugyanebben a fájlban töltsd ki a `_slice_checks` két TODO-ját: először a támogatási
+      szabályokat, amelyek kihagyják a megítéléshez túl kicsi csoportot, majd az F1-szabályokat.
+   6. Futtasd újra a kaput:
    ```bash
    make gate
    ```
-   Expected output: the first line is
+   Várt kimenet: az első sor:
    ```text
    GO — 10 passed, 0 failed, 4 SKIPPED (criteria v1.0.0)
    ```
-   Under `SKIPPED` the age band `50+` and the BMI band `under_normal` are listed.
+   A `SKIPPED` alatt a `50+` korcsoport és az `under_normal` BMI-sáv szerepel.
 
-**Check:**
+   **Ellenőrzés:**
 
-- Delete the Exercise 3 skip markers in `tests/test_gates.py`.
-- Run `uv run pytest tests/test_gates.py tests/test_model_gate.py`.
-  Expected output: `36 passed, 6 skipped`
-- Check that every threshold can fire: for each one, name a model that would fail it.
+- Töröld a 3. gyakorlathoz tartozó kihagyásjelölőket a `tests/test_gates.py` fájlból.
+- Futtasd a `uv run pytest tests/test_gates.py tests/test_model_gate.py` parancsot.
+  Várt kimenet: `36 passed, 6 skipped`
+- Ellenőrizd, hogy minden küszöbérték kiváltható: mindegyikhez nevezz meg egy modellt,
+  amely megbukna rajta.
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "Four kinds of acceptance criteria", "How many patients make a slice?" and
-  "Make sure every rule can fire"
-- Notes: "Acceptance criteria", "Skipped checks" and "Make sure every rule can fire"
-- If the headline shows 0 skipped, check `too_small` in `_slice_checks`.
-- With `minimum.f1` in place, a `max_f1_gap` wider than the aggregate F1 minus `min_f1` can
-  never fire.
+- Előadás: „Az elfogadási feltételek négy típusa”, „Hány beteg alkot egy szeletet?” és
+  „Győződj meg róla, hogy minden szabály kiváltható”
+- Jegyzetek: „Elfogadási feltételek”, „Kihagyott ellenőrzések” és
+  „Győződj meg róla, hogy minden szabály kiváltható”
+- Ha a fejléc 0 kihagyást mutat, ellenőrizd a `_slice_checks` `too_small` értékét.
+- A `minimum.f1` megléte esetén az összesített F1 és a `min_f1` különbségénél nagyobb
+  `max_f1_gap` soha nem váltható ki.
 
-### Exercise 4: the gate as a stage, and a real regression (≈ 15 min) *(written answer)*
+### 4. gyakorlat: a kapu szakaszként és egy valódi visszaesés (≈ 15 perc) *(írásos válasz)*
 
-A verdict file that nothing reads is a log line. In this exercise `dvc repro` stops on a
-NO-GO, and `register` and `promote` refuse without a GO. In a team this is the difference
-between a gate and a suggestion: someone types `make register` on a Friday evening.
+Az eredményfájl, amelyet senki nem olvas, csak egy naplóbejegyzés. Ebben a gyakorlatban a
+`dvc repro` leáll NO-GO esetén, a `register` és a `promote` pedig GO nélkül elutasítja a
+modellt. Egy csapatban ez különbözteti meg a kaput a javaslattól: valaki péntek este beírja,
+hogy `make register`.
 
-**Do:**
+**Teendők:**
 
-1. In `dvc.yaml`, add the `gate` stage.
-2. In `registry.py`, make `register_best_model` and `promote_to_staging` call `require_go`
-   from `pipeline.py`.
-3. Break the model on purpose. The `gate-fail` target in the Makefile changes `train.C` from
-   1.0 to 0.005, runs `dvc repro`, tries `register` and `promote`, and restores
-   `params.yaml`:
+1. A `dvc.yaml` fájlban add hozzá a `gate` szakaszt.
+2. A `registry.py` fájlban érd el, hogy a `register_best_model` és a `promote_to_staging`
+   a `pipeline.py` `require_go` függvényét hívja.
+3. Tedd szándékosan hibássá a modellt. A Makefile `gate-fail` célja a `train.C` értékét
+   1.0-ről 0.005-re módosítja, lefuttatja a `dvc repro` parancsot, megpróbálja a
+   `register` és `promote` műveleteket, majd visszaállítja a `params.yaml` fájlt:
    ```bash
    make gate-fail
    ```
-   Expected output: `evaluate` prints F1 0.5243 and ROC AUC 0.8427. With the reference
-   thresholds, the gate then prints the lines below; your thresholds may list other checks:
+   Várt kimenet: az `evaluate` 0.5243 F1-et és 0.8427 ROC AUC-t ír ki. A referencia-
+   küszöbértékekkel a kapu az alábbi sorokat írja ki; a te küszöbértékeid más ellenőrzéseket
+   is felsorolhatnak:
    ```text
    Running stage 'gate':
    Cannot run `gate` yet:
      NO-GO. 4 acceptance criteria failed: minimum.f1, regression.f1, slice.age_band.30-39,
      fairness.age_band.tpr_gap.
    ```
-   `models/model.pkl` is still listed, and `register` and `promote` both print
-   `Refusing to release.`
+   A `models/model.pkl` továbbra is szerepel a listában, a `register` és a `promote` pedig
+   egyaránt a `Refusing to release.` üzenetet írja ki.
 
-**Check:**
+   **Ellenőrzés:**
 
-- Delete the Exercise 4 skip markers in `tests/test_model_gate.py`.
-- Run `uv run pytest tests/test_model_gate.py`.
-  Expected output: `18 passed, 1 skipped`
-- Run `make dag`.
-  Expected output: `gate` is the last node, and no stage depends on it.
-- With the stack up, run `uv run pytest tests/test_mlflow_link.py`.
-  Expected output: `8 passed`
+- Töröld a 4. gyakorlathoz tartozó kihagyásjelölőket a `tests/test_model_gate.py` fájlból.
+- Futtasd a `uv run pytest tests/test_model_gate.py` parancsot.
+  Várt kimenet: `18 passed, 1 skipped`
+- Futtasd a `make dag` parancsot.
+  Várt kimenet: a `gate` az utolsó csomópont, és egyetlen szakasz sem függ tőle.
+- Elindított stack mellett futtasd a `uv run pytest tests/test_mlflow_link.py` parancsot.
+  Várt kimenet: `8 passed`
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "The gate in the pipeline" and "Inspect the report"
-- Notes: "The gate as a stage" and "Measurement and policy"
-- DVC docs: https://doc.dvc.org/user-guide/project-structure/dvcyaml-files
-- If `dvc repro` does not stop, look at the exit code of `main.py gate`.
+- Előadás: „A kapu a folyamatban” és „A jelentés vizsgálata”
+- Jegyzetek: „A kapu mint szakasz” és „Mérés és szabályzat”
+- DVC-dokumentáció: https://doc.dvc.org/user-guide/project-structure/dvcyaml-files
+- Ha a `dvc repro` nem áll le, nézd meg a `main.py gate` kilépési kódját.
 
-**Written answer** (in `answers.md`):
+**Írásos válasz** (az `answers.md` fájlban):
 
-1. Week 5's gate worked because `prepare` depended on the verdict file. Why can that not
-   work for this gate, and what replaces it?
-2. What happens if `register` does not call `require_go`? Who would notice, and when?
-3. With `C: 0.005`, F1 fell by 0.1098 and ROC AUC rose. Which one is the right answer? What
-   do you need to know about how the model is used, and what does
-   `acceptance.regression.primary_metric` commit you to?
+1. Az 5. heti kapu azért működött, mert a `prepare` függött az eredményfájltól. Miért nem
+   működhet ez ennél a kapunál, és mi helyettesíti?
+2. Mi történik, ha a `register` nem hívja meg a `require_go` függvényt? Ki és mikor veszi
+   ezt észre?
+3. `C: 0.005` mellett az F1 0.1098-cal csökkent, a ROC AUC pedig nőtt. Melyik a helyes
+   válasz? Mit kell tudnod a modell használatáról, és mire kötelez az
+   `acceptance.regression.primary_metric`?
 
-### Exercise 5: check the errors per group (≈ 15 min) *(written answer)*
+### 5. gyakorlat: a csoportonkénti hibák ellenőrzése (≈ 15 perc) *(írásos válasz)*
 
-Two groups can get the same share of positive predictions and still have very different
-numbers of missed cases. In this exercise you compute the three fairness metrics from the
-lecture with fairlearn: **demographic parity**, **equal opportunity** and **equalized odds**.
-Each one is a difference between groups. It is the largest gap in one rate (selection rate,
-TPR or FPR) between any two groups, and 0 means every group gets the same rate. The code and
-`params.yaml` call these differences *gaps* (`selection_rate_gap`, `tpr_gap`). Then you
-choose which fairness metrics to gate on which axis. This is the check an ethics review or
-an audit asks for.
+Két csoport ugyanakkora arányban kaphat pozitív előrejelzést, miközben a kihagyott esetek
+száma nagyon eltérő. Ebben a gyakorlatban az előadás három méltányossági metrikáját számítod
+ki a fairlearn segítségével: **demográfiai paritás**, **egyenlő lehetőség** és
+**egyenlő esélyek**. Mindegyik csoportok közötti különbség: egy ráta (kiválasztási ráta,
+TPR vagy FPR) két csoport közötti legnagyobb eltérése, a 0 pedig azt jelenti, hogy minden
+csoportban azonos a ráta. A kód és a `params.yaml` ezeket az eltéréseket *gap* néven
+nevezi (`selection_rate_gap`, `tpr_gap`). Ezután kiválasztod, hogy mely tengelyeken mely
+méltányossági metrikák legyenek a kapu részei. Ezt az ellenőrzést kéri egy etikai felülvizsgálat
+vagy audit.
 
-**Do:**
+**Teendők:**
 
-1. In `src/week_06_evaluation_pipeline/fairness.py`, implement `rates_by_group`: the
-   selection rate, TPR and FPR of every group, with a `MetricFrame`.
-2. In the same file, implement `gaps`: the fairness metrics, each a difference between the
-   groups computed by one fairlearn function. The TODO names the four keys: the
-   demographic parity difference, the equal opportunity difference, the FPR difference and
-   the equalized odds difference.
-3. Read `fairness_report` in the same file. It adds the two rules fairlearn does not have:
-   a rate with nothing to measure is None, and only groups with at least 5 rows and both
-   classes enter the gaps.
-4. In `gates.py`, fill in the TODO in `_fairness_checks`: when a gap is over its limit. The loop over
-   the axes in `acceptance.fairness`, with each axis's own limits, is there.
-5. Print the rates and the fairness metrics:
+1. A `src/week_06_evaluation_pipeline/fairness.py` fájlban valósítsd meg a `rates_by_group`
+   függvényt: minden csoport kiválasztási rátáját, TPR-jét és FPR-jét egy `MetricFrame`
+   segítségével.
+2. Ugyanebben a fájlban valósítsd meg a `gaps` függvényt: a méltányossági metrikákat, amelyek
+   mindegyike egy fairlearn-függvénnyel számított, csoportok közötti különbség. A TODO
+   megnevezi a négy kulcsot: a demográfiai paritás különbségét, az egyenlő lehetőség
+   különbségét, az FPR-különbséget és az egyenlő esélyek különbségét.
+3. Olvasd el a `fairness_report` függvényt ugyanebben a fájlban. Hozzáad két, a fairlearnből
+   hiányzó szabályt: a mérhetetlen ráta None, és csak a legalább 5 soros, mindkét osztályt
+   tartalmazó csoportok kerülnek be a különbségekbe.
+4. A `gates.py` fájlban töltsd ki a `_fairness_checks` TODO-ját: mi történjen, amikor egy
+   különbség túllépi a határértékét. Az `acceptance.fairness` tengelyein végigiteráló ciklus,
+   minden tengely saját korlátaival, már adott.
+5. Írasd ki a rátákat és a méltányossági metrikákat:
    ```bash
    make fairness
    ```
-   Expected output: for `age_band`, the selection-rate gap is 0.3030 and the equalized odds
-   difference is 0.3482. For `insulin_missing`, the selection-rate gap is 0.0070 and the TPR
-   gap is 0.1562.
-6. In `params.yaml`, add the `fairness` block to `acceptance`: one key per gated axis, with
-   the gaps you gate on it and their limits. Gate the selection-rate and TPR gaps on
-   `insulin_missing`, and the TPR gap on `age_band` with a looser limit. Then run `make gate`.
+   Várt kimenet: az `age_band` esetén a kiválasztási ráta különbsége 0.3030, az egyenlő esélyek
+   különbsége pedig 0.3482. Az `insulin_missing` esetén a kiválasztási ráta különbsége 0.0070,
+   a TPR-különbség pedig 0.1562.
+6. A `params.yaml` fájlban add hozzá az `acceptance` `fairness` blokkját: tengelyenként egy
+   kulcsot, a hozzá tartozó kapuzott különbségekkel és határértékekkel. Az
+   `insulin_missing` tengelyen kapuzd a kiválasztási ráta és a TPR különbségét, az
+   `age_band` tengelyen pedig a TPR-különbséget lazább határértékkel. Ezután futtasd a
+   `make gate` parancsot.
 
-**Check:**
+   **Ellenőrzés:**
 
-- Delete the Exercise 5 skip markers in `tests/test_fairness.py` and `tests/test_gates.py`.
-- Run `uv run pytest tests/test_fairness.py tests/test_gates.py`.
-  Expected output: `29 passed`
-- Run `make gate`.
-  Expected output: the headline is `GO — 13 passed, 0 failed, 4 SKIPPED`, and three checks
-  start with `fairness.`.
+- Töröld az 5. gyakorlathoz tartozó kihagyásjelölőket a `tests/test_fairness.py` és a
+  `tests/test_gates.py` fájlból.
+- Futtasd a `uv run pytest tests/test_fairness.py tests/test_gates.py` parancsot.
+  Várt kimenet: `29 passed`
+- Futtasd a `make gate` parancsot.
+  Várt kimenet: a fejléc `GO — 13 passed, 0 failed, 4 SKIPPED`, és három ellenőrzés
+  `fairness.` kezdetű.
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "Three rates for each group", "Three fairness metrics" and "Which groups get a
-  fairness gate?"
-- Notes: "Group fairness" and "Choosing a fairness criterion"
-- fairlearn docs: https://fairlearn.org/main/user_guide/assessment/common_fairness_metrics.html
-- `rates_by_group` has the same shape as `group_scores` from Exercise 1.
+- Előadás: „Három ráta minden csoporthoz”, „Három méltányossági metrika” és
+  „Mely csoportok kapnak méltányossági kaput?”
+- Jegyzetek: „Csoportméltányosság” és „Méltányossági kritérium választása”
+- fairlearn-dokumentáció: https://fairlearn.org/main/user_guide/assessment/common_fairness_metrics.html
+- A `rates_by_group` alakja megegyezik az 1. gyakorlatbeli `group_scores` alakjával.
 
-**Written answer** (in `answers.md`):
+**Írásos válasz** (az `answers.md` fájlban):
 
-1. `age_band` has a selection-rate gap over 0.30, yet you gate only its TPR gap. Why is the
-   large selection-rate gap defensible?
-2. The TPR limit on `age_band` is looser than on `insulin_missing`. Why, and what would make
-   you tighten it?
-3. This dataset has no sex, ethnicity, income or clinic column. Name one group you would
-   want to audit this model for and cannot. What would have had to happen, and when?
+1. Az `age_band` kiválasztási ráta különbsége 0.30 fölött van, mégis csak a TPR-különbségét
+   kapuzod. Miért védhető a nagy kiválasztási ráta különbsége?
+2. Az `age_band` TPR-határértéke lazább, mint az `insulin_missing` értéke. Miért, és mi
+   késztetne a szigorítására?
+3. Ez az adathalmaz nem tartalmaz nemre, etnikumra, jövedelemre vagy klinikára vonatkozó
+   oszlopot. Nevezz meg egy csoportot, amelyre auditálni szeretnéd a modellt, de nem tudod.
+   Minek kellett volna megtörténnie, és mikor?
 
-### Exercise 6 (optional): raise the bar with a ratchet (≈ 15 min) *(written answer)*
+### 6. gyakorlat (opcionális): a léc emelése racsnival (≈ 15 perc) *(írásos válasz)*
 
-A gate that compares with the current champion turns one way: every better model raises the
-bar. You make a better model the champion, sync the baseline, and see the original model
-fail. This is the situation when someone retrains a model "just to check" and the old one no
-longer passes.
+A jelenlegi bajnokkal összehasonlító kapu csak egy irányban mozog: minden jobb modell emeli
+a lécet. Egy jobb modellt teszel meg bajnoknak, szinkronizálod az alapvonalat, és látod,
+ahogy az eredeti modell megbukik. Ez történik akkor, amikor valaki „csak ellenőrzésképpen”
+újratanít egy modellt, és a régi már nem megy át.
 
-This exercise needs the Docker stack from Setup Step 4 running: the MLflow tracking server
-and its stores. The registry, the `champion` alias and the training runs live there, so
-`make ratchet` fails without it.
+Ehhez a gyakorlathoz a 4. beállítási lépés Docker-stackjének futnia kell: itt található az
+MLflow követőszerver és a tárolói. A regiszter, a `champion` alias és a tanítási futások itt
+élnek, ezért a `make ratchet` enélkül meghiúsul.
 
-**Do:**
+**Teendők:**
 
-1. Check that the stack is up. If you stopped it, start it again:
+1. Ellenőrizd, hogy fut-e a stack. Ha leállítottad, indítsd újra:
    ```bash
    make up
    make ps
    ```
-   Expected output: `make up` returns once every service is healthy, and `make ps` lists
-   `mlflow`, `postgres` and `s3` as `Up` (`healthy`). MLflow answers at
+   Várt kimenet: a `make up` akkor tér vissza, amikor minden szolgáltatás egészséges, a
+   `make ps` pedig a `mlflow`, `postgres` és `s3` szolgáltatásokat `Up` (`healthy`) állapotban
+   listázza. Az MLflow a
    http://localhost:5500.
-2. In `src/week_06_evaluation_pipeline/baseline.py`, fill in the TODO in
-   `baseline_from_registry`: load the champion by its alias and score it on today's test
-   split with `score_on_test_set`. The alias lookup and the record it returns are there.
-3. Run the whole loop. The target trains a random forest and registers it as champion. It
-   syncs `metrics/baseline.json`, runs the original model against the new baseline, then
-   restores `params.yaml` and `metrics/baseline.json`. The `champion` alias stays on the
-   random forest:
+2. A `src/week_06_evaluation_pipeline/baseline.py` fájlban töltsd ki a
+   `baseline_from_registry` TODO-ját: töltsd be a bajnokot az aliasa alapján, és a
+   `score_on_test_set` segítségével pontozd a mai tesztspliten. Az alias kikeresése és a
+   visszaadott rekord már adott.
+3. Futtasd végig a teljes ciklust. A cél egy random forest modellt tanít, és bajnokként
+   regisztrálja. Szinkronizálja a `metrics/baseline.json` fájlt, az eredeti modellt
+   összeveti az új alapvonallal, majd visszaállítja a `params.yaml` és a
+   `metrics/baseline.json` fájlokat. A `champion` alias a random forest modellen marad:
    ```bash
    make ratchet
    ```
-   Expected output: act 1 prints `GO` with `regression.f1` passing at +0.0111. Act 3 prints
-   `NO-GO. 1 acceptance criteria failed: regression.f1.` and
+   Várt kimenet: az 1. felvonás `GO` eredményt ír ki, a `regression.f1` pedig +0.0111 értékkel
+   átmegy. A 3. felvonás ezt írja ki:
+   `NO-GO. 1 acceptance criteria failed: regression.f1.`, majd ezt:
    `The logistic regression did not get worse. The bar got higher.`
 
-**Check:**
+**Ellenőrzés:**
 
-- Delete the Exercise 6 skip marker in `tests/test_model_gate.py`.
-- Run `uv run pytest tests/test_model_gate.py`.
-  Expected output: `19 passed`
-- Run `make baseline`.
-  Expected output: the first line is `baseline source : week-05 reference run`, and `f1` is
-  0.6341. The ratchet put the bar back.
+- Töröld a 6. gyakorlathoz tartozó kihagyásjelölőt a `tests/test_model_gate.py` fájlból.
+- Futtasd a `uv run pytest tests/test_model_gate.py` parancsot.
+  Várt kimenet: `19 passed`
+- Futtasd a `make baseline` parancsot.
+  Várt kimenet: az első sor `baseline source : week-05 reference run`, az `f1` pedig
+  0.6341. A racsni visszaállította a lécet.
 
-**Stuck?**
+**Elakadtál?**
 
-- Lecture: "The bar moves up" and "Where does the champion's score come from?"
-- Notes: "The ratchet"
-- MLflow docs: https://mlflow.org/docs/latest/ml/model-registry/workflow/
-- Look up the version by the alias in `settings.champion_alias`, not by a number.
-- A score stored at training time belongs to that day's test set; score the model again.
+- Előadás: „A léc feljebb kerül” és „Honnan származik a bajnok pontszáma?”
+- Jegyzetek: „A racsni”
+- MLflow-dokumentáció: https://mlflow.org/docs/latest/ml/model-registry/workflow/
+- A verziót a `settings.champion_alias` alias alapján keresd ki, ne egy szám alapján.
+- A tanításkor tárolt pontszám az adott nap teszthalmazához tartozik; pontozd újra a modellt.
 
-**Written answer** (in `answers.md`):
+**Írásos válasz** (az `answers.md` fájlban):
 
-1. A ratchet only turns one way. Give one situation where that is what you want, and one
-   where it locks you out of a model you should have shipped.
-2. What is a champion's score a measurement of?
+1. A racsni csak egy irányban mozog. Mondj egy helyzetet, amelyben ezt szeretnéd, és egyet,
+   amelyben kizár egy modellt, amelyet ki kellett volna adnod.
+2. Mit mér a bajnok pontszáma?
 
-## Finish: commit and submit your work (≈ 5 min)
+## Befejezés: commitold és add be a munkád (≈ 5 perc)
 
-1. Run `uv run pytest tests/`.
-   Expected output: `158 passed, 9 skipped`. The 8 skipped tests need the stack and `make link`;
-   the ninth is Exercise 6 (`159 passed, 8 skipped` if you did it).
-2. Commit your work:
+1. Futtasd a `uv run pytest tests/` parancsot.
+   Várt kimenet: `158 passed, 9 skipped`. A 8 kihagyott teszthez kell a stack és a
+   `make link`; a kilencedik a 6. gyakorlat (`159 passed, 8 skipped`, ha elvégezted).
+2. Commitold a munkádat:
    ```bash
-   git status          # answers.md must appear; .env and .venv/ must not
+   git status          # az answers.md-nek szerepelnie kell; .env és .venv/ nem szerepelhet
    git add .
    git commit -m "week06: slices, acceptance gate, fairness checks and written answers"
    ```
-3. Check that `params.yaml`, `dvc.yaml`, `dvc.lock`, `metrics/slices.json`,
-   `reports/gate.json` and `answers.md` are in the commit, and that **none** of these
-   appear: `.env`, `.venv/`, `.dvc/cache/`, `data/measurements.csv`.
-4. Push the commit, open it on GitHub (`https://github.com/<you>/<repo>/commit/<hash>`),
-   and upload that URL to Moodle.
+3. Ellenőrizd, hogy a `params.yaml`, `dvc.yaml`, `dvc.lock`, `metrics/slices.json`,
+   `reports/gate.json` és az `answers.md` szerepelnek a commitban, és **egyik alábbi sem**
+   szerepel benne: `.env`, `.venv/`, `.dvc/cache/`, `data/measurements.csv`.
+4. Pushold a commitot, nyisd meg GitHubon (`https://github.com/<you>/<repo>/commit/<hash>`),
+   és töltsd fel az URL-t a Moodle-be.
 
 ---
 
-## Make targets
+## Make-célok
 
-| Target | What it does |
+| Cél | Mit csinál |
 | --- | --- |
-| `make slices` | the per-group table, with `n` and `pos` on every row |
-| `make gate` | the go/no-go decision; exits non-zero on a NO-GO |
-| `make fairness` | the three gaps per axis |
-| `make baseline` | the recorded champion the gate compares with |
-| `make baseline-sync` | score the `champion` on today's test split and rewrite it (Exercise 6) |
-| `make gate-fail` | break the model on purpose and watch the gate hold (Exercise 4) |
-| `make ratchet` | a better model becomes champion and the old one is refused (Exercise 6) |
-| `make data-gate-fail` | Week 5's data gate: break the data and watch it hold |
-| `make repro`, `make dag`, `make metrics` | the pipeline, its graph, its numbers |
-| `make register`, `make promote`, `make promote-champion`, `make trace` | the registry |
+| `make slices` | a csoportonkénti táblázat, minden sorban `n` és `pos` értékkel |
+| `make gate` | a GO/NO-GO döntés; NO-GO esetén nem nulla kilépési kódot ad |
+| `make fairness` | a három különbség tengelyenként |
+| `make baseline` | a rögzített bajnok, amellyel a kapu összehasonlít |
+| `make baseline-sync` | a `champion` pontozása a mai tesztspliten és újraírása (6. gyakorlat) |
+| `make gate-fail` | a modell szándékos elrontása és a kapu működésének megfigyelése (4. gyakorlat) |
+| `make ratchet` | egy jobb modell lesz a bajnok, a régit pedig elutasítja (6. gyakorlat) |
+| `make data-gate-fail` | az 5. heti adatkapu: az adatok elrontása és a kapu megfigyelése |
+| `make repro`, `make dag`, `make metrics` | a folyamat, a gráfja és a számai |
+| `make register`, `make promote`, `make promote-champion`, `make trace` | a regiszter |
 
-Every Week 5 target still works.
+Az 5. hét minden célja továbbra is működik.
 
-## What lives where
+## Mi hol található
 
-| Thing | Where it lives | Why |
+| Elem | Helye | Miért |
 | --- | --- | --- |
-| `params.yaml` | Git | `evaluation` is what we measure, `acceptance` is whether it passes |
-| `metrics/slices.json`, `reports/gate.json` | Git | `cache: false`, so the evidence is in the same commit as the claim |
-| `metrics/baseline.json` | Git | the recorded champion; only `make baseline-sync` writes it |
-| `src/.../gates.py` | Git | a pure function: plain dicts in, a verdict out |
-| `data/measurements.csv` | Silo (`dvc-storage`) | the versioned dataset; Git has its pointer |
-| `models/model.pkl`, `data/processed/*.csv` | DVC cache | outputs the pipeline can rebuild |
+| `params.yaml` | Git | az `evaluation` a mérés, az `acceptance` pedig az átmenés feltétele |
+| `metrics/slices.json`, `reports/gate.json` | Git | `cache: false`, ezért a bizonyíték és az állítás ugyanabban a commitban van |
+| `metrics/baseline.json` | Git | a rögzített bajnok; csak a `make baseline-sync` írja |
+| `src/.../gates.py` | Git | tiszta függvény: egyszerű dict a bemenet, eredmény a kimenet |
+| `data/measurements.csv` | Silo (`dvc-storage`) | a verziózott adathalmaz; a Gitben a mutatója van |
+| `models/model.pkl`, `data/processed/*.csv` | DVC-gyorsítótár | a folyamat által újraépíthető kimenetek |
 
-## Tear-down
+## Leállítás
 
 ```bash
-make down      # stop; data and runs stay in the volumes
-make down-v    # stop AND delete both buckets and the database
+make down      # leállítás; az adatok és a futások a kötetekben maradnak
+make down-v    # leállítás ÉS mindkét bucket és az adatbázis törlése
 ```
 
-## Troubleshooting
+## Hibaelhárítás
 
-| Problem | Fix |
+| Probléma | Megoldás |
 | --- | --- |
-| `Cannot run gate yet: metrics.json is missing` | `evaluate` has never run. Run `make repro`. |
-| `The gate is not implemented yet, so nothing was checked` | Exercise 3 is not finished. The command exits with 1, so `dvc repro` stops. |
-| `No slice report — evaluation.slice_report returns nothing yet` | Exercise 1 is not finished. |
-| `Cannot run register: reports/gate.json is missing` | The gate has not run for this model. Run `make repro` or `make gate`. |
-| `The recorded verdict is NO-GO ... Refusing to release` | The gate is doing its job. Read `reports/gate.json`, and fix the model. If you change a threshold, bump `criteria_version`. |
-| `register` says `No MLflow run recorded yet` | The stack was down when `train` ran. Start it, then run `make link`. |
-| `ModuleNotFoundError: No module named 'fairlearn'` | Run `uv sync --all-groups` again: `fairlearn` is new this week. |
-| `dvc repro` says "up to date" after you edit a threshold | You edited a comment, not a value. Check `dvc params diff`. |
-| `Bind for 0.0.0.0:5500 failed: port is already allocated` | Another week's stack is running. Stop it with `docker compose down` in that folder. |
+| `Cannot run gate yet: metrics.json is missing` | Az `evaluate` még nem futott le. Futtasd a `make repro` parancsot. |
+| `The gate is not implemented yet, so nothing was checked` | A 3. gyakorlat nincs kész. A parancs 1-gyel lép ki, ezért a `dvc repro` leáll. |
+| `No slice report — evaluation.slice_report returns nothing yet` | Az 1. gyakorlat nincs kész. |
+| `Cannot run register: reports/gate.json is missing` | A kapu még nem futott le ehhez a modellhez. Futtasd a `make repro` vagy `make gate` parancsot. |
+| `The recorded verdict is NO-GO ... Refusing to release` | A kapu végzi a dolgát. Olvasd el a `reports/gate.json` fájlt, és javítsd a modellt. Küszöb módosításakor növeld a `criteria_version` értékét. |
+| `register` says `No MLflow run recorded yet` | A stack le volt állítva, amikor a `train` futott. Indítsd el, majd futtasd a `make link` parancsot. |
+| `ModuleNotFoundError: No module named 'fairlearn'` | Futtasd újra a `uv sync --all-groups` parancsot: a `fairlearn` ezen a héten új függőség. |
+| `dvc repro` says "up to date" after you edit a threshold | Megjegyzést módosítottál, nem értéket. Ellenőrizd a `dvc params diff` kimenetét. |
+| `Bind for 0.0.0.0:5500 failed: port is already allocated` | Egy másik hét stackje fut. Állítsd le a mappájában a `docker compose down` paranccsal. |
 
-## Next steps
+## Következő lépések
 
-The pipeline now has a gate at both ends. The gate runs only when someone runs it: nothing
-stops a team member from skipping `make gate`, or from merging a change that breaks it. Week 7
-runs these checks automatically on every commit, with continuous integration.
+A folyamatnak most mindkét végén van kapuja. A kapu csak akkor fut, amikor valaki elindítja:
+semmi nem akadályozza meg a csapattagot a `make gate` kihagyásában, vagy egy azt elrontó
+módosítás összeolvasztásában. A 7. héten a folyamatos integráció minden commitnál automatikusan
+lefuttatja ezeket az ellenőrzéseket.
