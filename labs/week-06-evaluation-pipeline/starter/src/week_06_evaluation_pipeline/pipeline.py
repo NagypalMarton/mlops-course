@@ -240,8 +240,10 @@ def evaluate(settings: Settings) -> dict:
     # the raw test frame (`frame`, not `features`, which has no sentinel zeros left),
     # the labels, the predicted classes, the predicted probabilities of the
     # positive class, and the slice specs from `settings`.
+    predicted = model.predict(features)
+    probabilities = model.predict_proba(features)[:, 1]
     slices = slice_report(
-        frame, labels, model.predict(features), None, {}
+        frame, labels, predicted, probabilities, settings.slice_specs
     )
 
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)

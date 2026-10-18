@@ -9,9 +9,7 @@
 # AWS_* names that DVC reads, so no key is written into .dvc/config.
 # DVC_PAGER=cat stops `dvc dag` from opening a pager.
 DOTENV = set -a && . ./.env && set +a
-DVC    = $(DOTENV) && AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY" \
-                      AWS_SECRET_ACCESS_KEY="$$S3_SECRET_KEY" \
-                      DVC_PAGER=cat uv run dvc
+DVC    = uv run python scripts/run_dvc.py
 
 ## Start all four services and wait for the healthchecks
 up:
