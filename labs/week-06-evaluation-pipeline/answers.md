@@ -41,3 +41,32 @@ elsődlegesnek. A `C: 0.005` modell így akkor is megbukhat, ha a ROC AUC javult
 0.1098-cal visszaesett.
 
 # 5. feladat
+## Az age_band kiválasztási ráta különbsége 0.30 fölött van, mégis csak a TPR-különbségét kapuzod. Miért védhető a nagy kiválasztási ráta különbsége?
+
+A kiválasztási ráta azt mutatja, hogy az egyes csoportokból milyen arányban kapnak
+pozitív előrejelzést, de önmagában nem mondja meg, hogy ezek a döntések helyesek-e.
+Az `age_band` csoportjai eltérő kockázatúak lehetnek, ezért egy nagyobb kiválasztási
+ráta-különbség akár a valós kockázati különbségeket is tükrözheti. Emiatt itt inkább
+azt kapuzzuk, hogy a valóban pozitív eseteket, vagyis a betegeket, hasonló arányban
+találja-e meg a modell. Ez a TPR-különbség, és az egészségügyi alkalmazásban
+közvetlenebbül kapcsolódik a kihagyott betegek kockázatához.
+
+## Az `age_band` TPR-határértéke lazább, mint az `insulin_missing` értéke. Miért, és mi késztetne a szigorítására?
+
+Az `age_band` esetében lazább határérték azért lehet indokolt, mert az életkor valódi
+kockázati tényező lehet, és az életkori csoportok között eleve lehetnek különbségek.
+Az `insulin_missing` viszont egy mérési vagy adatminőségi állapotot jelöl, ezért ott
+kevésbé szeretnénk, hogy a hiányzó adat miatt romoljon egy csoport felismerési aránya.
+Szigorítást indokolna, ha több mérésen vagy nagyobb adathalmazon is tartósan megmaradna
+a TPR-különbség, ha valamelyik csoportban sok valódi pozitív esetet hagyna ki a modell,
+vagy ha az üzleti, egészségügyi vagy etikai kockázat miatt a mostani eltérés már nem
+lenne elfogadható.
+
+## Ez az adathalmaz nem tartalmaz nemre, etnikumra, jövedelemre vagy klinikára vonatkozó oszlopot. Nevezz meg egy csoportot, amelyre auditálni szeretnéd a modellt, de nem tudod. Minek kellett volna megtörténnie, és mikor?
+
+Én például a nemek szerinti csoportokra is auditálnám a modellt, de ezt az adathalmazból
+nem lehet megtenni, mert nincs benne erre vonatkozó oszlop. Már az adatgyűjtés és az
+adatmodell megtervezésekor fel kellett volna venni ezt az adatot, természetesen megfelelő
+adatvédelmi és hozzájárulási szabályok mellett. Ezt még a modell tanítása és az éles
+használat előtt kellett volna ellenőrizni, mert utólag a hiányzó csoportokra nem lehet
+megbízható fairness-mérést készíteni.
