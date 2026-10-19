@@ -94,7 +94,7 @@ stages:
     outs:
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: 364e7e0187c65ac66cc7de9e4c7bcffd
+      md5: a359cb7502cf1205a00782938e493969
       size: 86
     - path: models/model.pkl
       hash: md5
@@ -109,7 +109,7 @@ stages:
       size: 8041
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: 364e7e0187c65ac66cc7de9e4c7bcffd
+      md5: a359cb7502cf1205a00782938e493969
       size: 86
     - path: models/model.pkl
       hash: md5
@@ -121,8 +121,8 @@ stages:
       size: 9188
     - path: src/week_06_evaluation_pipeline/fairness.py
       hash: md5
-      md5: a8ea270ae85fe750dc31e1534f9a8309
-      size: 5503
+      md5: 771dbf50cea39f8971f80191ee34ce2f
+      size: 6270
     - path: src/week_06_evaluation_pipeline/model.py
       hash: md5
       md5: c58e6f765d5ee4ce0f077332eb42f368
@@ -184,8 +184,8 @@ stages:
       size: 112
     - path: metrics/slices.json
       hash: md5
-      md5: 5763870f2c2f3df7324391d18a0fbc03
-      size: 5138
+      md5: f8ede8e10552b6e88b2036d03a132570
+      size: 5196
   gate:
     cmd: uv run python src/main.py gate
     deps:
@@ -199,20 +199,20 @@ stages:
       size: 112
     - path: metrics/slices.json
       hash: md5
-      md5: 5763870f2c2f3df7324391d18a0fbc03
-      size: 5138
+      md5: f8ede8e10552b6e88b2036d03a132570
+      size: 5196
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: 364e7e0187c65ac66cc7de9e4c7bcffd
+      md5: a359cb7502cf1205a00782938e493969
       size: 86
     - path: src/week_06_evaluation_pipeline/baseline.py
       hash: md5
-      md5: 200df729c5b718a5319dac86ce2b3219
-      size: 3931
+      md5: 68e90b5a0ab648194017bd1ce2d710da
+      size: 4061
     - path: src/week_06_evaluation_pipeline/gates.py
       hash: md5
-      md5: cbaecef5c8f35fbefb73e625e0084734
-      size: 14859
+      md5: 7fe8b8b145ecba97604aff8d5993b44f
+      size: 14848
     - path: src/week_06_evaluation_pipeline/pipeline.py
       hash: md5
       md5: b4b9dc37a20e4c0b680dd4a0c842cff4
@@ -236,8 +236,14 @@ stages:
             min_positives: 10
             min_f1: 0.5
             max_f1_gap: 0.1
+          fairness:
+            insulin_missing:
+              max_selection_rate_gap: 0.05
+              max_tpr_gap: 0.2
+            age_band:
+              max_tpr_gap: 0.25
     outs:
     - path: reports/gate.json
       hash: md5
-      md5: 8c8eb218401c1c44cf7c4961fd8b8d69
-      size: 4231
+      md5: c6782a09060d7ae9bfbcc516db09702f
+      size: 4984

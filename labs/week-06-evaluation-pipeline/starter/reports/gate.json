@@ -3,7 +3,7 @@
   "criteria_version": "1.0.0",
   "primary_metric": "f1",
   "summary": {
-    "passed": 10,
+    "passed": 13,
     "failed": 0,
     "skipped": 4
   },
@@ -176,6 +176,36 @@
       "gap_to_aggregate": -0.0326,
       "min_f1": 0.5,
       "max_f1_gap": 0.1,
+      "status": "pass",
+      "reason": null
+    },
+    {
+      "id": "fairness.age_band.tpr_gap",
+      "kind": "fairness",
+      "axis": "age_band",
+      "metric": "tpr_gap",
+      "limit": 0.25,
+      "observed": 0.2059,
+      "status": "pass",
+      "reason": null
+    },
+    {
+      "id": "fairness.insulin_missing.selection_rate_gap",
+      "kind": "fairness",
+      "axis": "insulin_missing",
+      "metric": "selection_rate_gap",
+      "limit": 0.05,
+      "observed": 0.007,
+      "status": "pass",
+      "reason": null
+    },
+    {
+      "id": "fairness.insulin_missing.tpr_gap",
+      "kind": "fairness",
+      "axis": "insulin_missing",
+      "metric": "tpr_gap",
+      "limit": 0.2,
+      "observed": 0.1562,
       "status": "pass",
       "reason": null
     }

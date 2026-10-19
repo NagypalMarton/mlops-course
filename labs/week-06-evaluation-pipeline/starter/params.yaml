@@ -74,3 +74,9 @@ acceptance:
   # from `evaluation.slices`, holding that axis's limits: max_selection_rate_gap,
   # max_tpr_gap or max_equalized_odds_difference. An axis you leave out is only
   # reported.
+  fairness:
+    insulin_missing:
+      max_selection_rate_gap: 0.05
+      max_tpr_gap: 0.20
+    age_band:
+      max_tpr_gap: 0.25

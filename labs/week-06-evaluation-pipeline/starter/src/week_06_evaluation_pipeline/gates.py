@@ -299,7 +299,7 @@ def _fairness_checks(slices: dict, rules: dict) -> list[dict]:
                 continue
             # TODO(student) Exercise 5: set `exceeded` to True when the observed gap
             # is above the limit this axis configures, and to False otherwise.
-            exceeded = float(observed) > float(limit)#True#False
+            exceeded = float(observed) > float(limit)
             out.append(
                 _check(
                     id=f"fairness.{axis}.{key}",
