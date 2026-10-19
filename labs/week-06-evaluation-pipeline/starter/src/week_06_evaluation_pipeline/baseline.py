@@ -69,7 +69,9 @@ def baseline_from_registry(settings: Settings) -> dict:
     # score it on today's test split (`test_path`) with `score_on_test_set` above,
     # and put the result in `metrics`. An empty `metrics` reads as "no baseline".
     # Reference: https://mlflow.org/docs/latest/ml/model-registry/workflow/
-    metrics: dict = {}
+    alias = settings.champion_alias
+    model = mlflow.sklearn.load_model(f"models:/{name}@{alias}")
+    metrics = score_on_test_set(model, test_path)
 
     return {
         "source": f"mlflow://{name}@{settings.champion_alias}",

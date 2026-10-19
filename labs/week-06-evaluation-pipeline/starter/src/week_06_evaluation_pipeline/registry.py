@@ -22,7 +22,9 @@ def register_best_model(settings: Settings, run_id: str) -> ModelVersion:
     # Replace the placeholder `verdict` below with the verdict returned by
     # `require_go` in pipeline.py. The tags below use its "verdict" and
     # "criteria_version" keys.
-    verdict = {"verdict": "not-checked", "criteria_version": "not-checked"}
+    from .pipeline import require_go
+
+    verdict = require_go(settings)
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     return mlflow.register_model(
@@ -60,14 +62,26 @@ def promote_to_staging(
     """
     # TODO(student) Exercise 4: refuse here too, with the same `require_go`.
     # Replace the placeholder `verdict` below with the verdict it returns.
-    verdict = {"verdict": "not-checked", "criteria_version": "not-checked",
-               "summary": {"skipped": "?"}}
+    from .pipeline import require_go
+
+    verdict = require_go(settings)
 
     client = MlflowClient(settings.mlflow_tracking_uri)
     name = settings.registered_model_name
 
     # The metrics come from the source run, so the tags match what was measured.
-    source_run_id = client.get_model_version(name, version).run_id
+    # Search avoids MLflow server versions whose PostgreSQL schema stores `version`
+    # as an integer while the REST endpoint binds it as a string.
+    versions = client.search_model_versions(f"name = '{name}'")
+    selected = next(
+        (candidate for candidate in versions if str(candidate.version) == str(version)),
+        None,
+    )
+    if selected is None:
+        raise RuntimeError(
+            f"No version {version!r} found under registered model {name!r}."
+        )
+    source_run_id = selected.run_id
     metrics = client.get_run(source_run_id).data.metrics
 
     client.set_model_version_tag(name, version, "validation_f1", f"{metrics['f1']:.4f}")

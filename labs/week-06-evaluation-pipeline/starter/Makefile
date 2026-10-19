@@ -5,6 +5,9 @@
         data-gate-fail slices gate fairness baseline baseline-sync gate-fail \
         ratchet
 
+# Keep Python subprocess output UTF-8 on Windows (the pipeline uses Unicode status text).
+export PYTHONUTF8 = 1
+
 # Every recipe that calls dvc sources .env and passes the Silo keys on as the
 # AWS_* names that DVC reads, so no key is written into .dvc/config.
 # DVC_PAGER=cat stops `dvc dag` from opening a pager.
@@ -130,7 +133,7 @@ baseline-sync:
 ## Exercise 4: over-regularise the model (train.C 0.005), run the pipeline, then restore params.yaml.
 ## `dvc repro` must stop at `gate`, `register` and `promote` must refuse, and models/model.pkl must stay
 gate-fail:
-	@cp params.yaml .gate-fail.bak
+	@uv run python -c "import shutil; shutil.copyfile('params.yaml', '.gate-fail.bak')"
 	@echo "--- over-regularising the model: train.C 1.0 -> 0.005 ---"
 	@uv run python -c "import pathlib; p=pathlib.Path('params.yaml'); p.write_text(p.read_text().replace('  C: 1.0', '  C: 0.005'))"
 	@echo
@@ -138,7 +141,7 @@ gate-fail:
 	-$(DVC) repro
 	@echo
 	@echo "--- the model must still be on disk ---"
-	@ls -l models/model.pkl
+	@uv run python -c "from pathlib import Path; p=Path('models/model.pkl'); print(f'{p.stat().st_size} bytes  {p}')"
 	@echo
 	@echo "--- register must REFUSE (expected exit 1) ---"
 	-uv run python src/main.py register
@@ -146,7 +149,7 @@ gate-fail:
 	-uv run python src/main.py promote
 	@echo
 	@echo "--- restoring params.yaml ---"
-	@mv .gate-fail.bak params.yaml
+	@uv run python -c "import shutil; shutil.move('.gate-fail.bak', 'params.yaml')"
 	$(DVC) repro
 
 ## Exercise 6: train a random forest, make it champion and sync the baseline;

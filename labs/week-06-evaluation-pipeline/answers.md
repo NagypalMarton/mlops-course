@@ -6,4 +6,38 @@ A legrosszabb teljesítményt mutató alcsoport az `age_band` szelet `50+` csopo
 A kis elemszám ($n = 19$) miatt ez az eltérés nem feltétlenül jelent modellhibát; üzleti vagy fejlesztési döntés előtt több adatgyűjtés és újabb tesztelés szükséges.
 
 # 4. feladat
+## Az 5. heti kapu azért működött, mert a prepare függött az eredményfájltól. Miért nem működhet ez ennél a kapunál, és mi helyettesíti?
+
+Az 5. héten a `prepare` közvetlenül függött a verdict fájltól, ezért a DVC automatikusan
+megállította a folyamatot, ha az adatkapu NO-GO eredményt írt. Ennél a kapunál viszont a
+`gate` az utolsó szakasz, tehát a `register` és a `promote` nem lehetnek tőle függő DVC
+szakaszok. Ha azok függnének a `gate` kimenetétől, a modellregisztráció és a promotálás
+nem lenne normális, külön kiadható művelet. Ezt ezért a `require_go` függvény helyettesíti:
+kiolvassa a `reports/gate.json` fájlt, és csak rögzített GO verdict esetén engedi a modellt
+regisztrálni vagy stagingbe léptetni.
+
+## Mi történik, ha a register nem hívja meg a require_go függvényt? Ki és mikor veszi ezt észre?
+
+Ha a `register` nem hívja meg a `require_go` függvényt, akkor egy NO-GO vagy még nem
+ellenőrzött modell is bekerülhet az MLflow modellregiszterbe. Ezt nem feltétlenül veszi
+észre azonnal senki, mert a regisztráció technikailag sikeresnek látszik. A probléma akkor
+derül ki, amikor valaki később stagingbe vagy éles környezetbe próbálja léptetni a modellt,
+vagy amikor egy audit megvizsgálja a kiadási folyamatot. A `require_go` már a regisztráció
+előtt megakadályozza ezt, ezért a hibás modell nem jut tovább.
+
+## C: 0.005 mellett az F1 0.1098-cal csökkent, a ROC AUC pedig nőtt. Melyik a helyes válasz? Mit kell tudnod a modell használatáról, és mire kötelez az acceptance.regression.primary_metric?
+
+Nincs minden helyzetben egyetlen helyes metrika. A ROC AUC azt mutatja meg, hogy a modell
+mennyire jól rangsorolja a pozitív és negatív eseteket, az F1 viszont a választott
+0.5-ös döntési küszöbnél kapott osztályozások minőségét méri. Ezért előfordulhat, hogy a
+ROC AUC nő, miközben az F1 csökken, például ha a valószínűségek sorrendje javul, de kevés
+érték lépi át a pozitív döntési küszöböt.
+
+Ahhoz, hogy eldöntsük, melyik fontosabb, tudnunk kell, hogyan használják a modellt: rangsorol
+vagy döntést hoz, mennyire költségesek a téves pozitív és a kihagyott pozitív esetek, illetve
+van-e lehetőség a döntési küszöb módosítására. Ebben a projektben az
+`acceptance.regression.primary_metric` értéke `f1`, ezért a regressziós kapu az F1-et tekinti
+elsődlegesnek. A `C: 0.005` modell így akkor is megbukhat, ha a ROC AUC javult, mert az F1
+0.1098-cal visszaesett.
+
 # 5. feladat

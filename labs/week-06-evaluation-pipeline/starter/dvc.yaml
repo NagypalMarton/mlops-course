@@ -86,3 +86,18 @@ stages:
   # Params: the `acceptance` block only.
   # Out: reports/gate.json, kept in Git (`cache: false`).
   # Do not make `gate` a dependency of another stage.
+  gate:
+    cmd: uv run python src/main.py gate
+    deps:
+      - metrics/metrics.json
+      - metrics/slices.json
+      - metrics/baseline.json
+      - models/mlflow_run_id.json
+      - src/week_06_evaluation_pipeline/gates.py
+      - src/week_06_evaluation_pipeline/baseline.py
+      - src/week_06_evaluation_pipeline/pipeline.py
+    params:
+      - acceptance
+    outs:
+      - reports/gate.json:
+          cache: false
