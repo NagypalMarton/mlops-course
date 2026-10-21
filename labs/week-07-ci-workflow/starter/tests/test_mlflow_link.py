@@ -15,7 +15,7 @@ from week_07_ci_workflow.schemas import SCHEMA_VERSION
 from week_07_ci_workflow.tracking import search_runs_by_data_version
 
 # TODO(student) Exercise 3: add this module's layer to the list, next to the guard.
-pytestmark = [pytest.mark.live]
+pytestmark = [pytest.mark.integration, pytest.mark.live]
 
 
 @pytest.fixture(scope="module")

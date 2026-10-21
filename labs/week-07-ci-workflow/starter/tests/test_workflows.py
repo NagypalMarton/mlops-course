@@ -19,6 +19,7 @@ from week_07_ci_workflow.workflows import (
 
 # TODO(student) Exercise 3: mark this module's layer with `pytestmark`:
 # unit, data, eval or integration.
+pytestmark = [pytest.mark.unit]
 
 WORKFLOW_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 

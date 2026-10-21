@@ -73,6 +73,9 @@ cp .env.example .env
 
 The experiment is now `diabetes-week7`.
 
+The DVC Makefile targets load `.env` through the project environment, so they
+work from POSIX shells as well as Windows PowerShell or `cmd.exe`.
+
 ## Step 3: the dataset and the pipeline
 
 Build the data from the two batches in `data/raw/`, then run the pipeline:

@@ -11,6 +11,7 @@ from week_07_ci_workflow.data import FEATURE_COLUMNS, load_measurements
 
 # TODO(student) Exercise 3: mark this module's layer with `pytestmark`:
 # unit, data, eval or integration.
+pytestmark = [pytest.mark.unit]
 
 
 @pytest.fixture

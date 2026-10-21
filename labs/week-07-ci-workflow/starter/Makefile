@@ -8,12 +8,10 @@
         test-unit test-data test-eval test-integration
 
 # Every recipe that calls dvc sources .env and passes the Silo keys on as the
-# AWS_* names that DVC reads, so no key is written into .dvc/config.
-# DVC_PAGER=cat stops `dvc dag` from opening a pager.
-DOTENV = set -a && . ./.env && set +a
-DVC    = $(DOTENV) && AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY" \
-                      AWS_SECRET_ACCESS_KEY="$$S3_SECRET_KEY" \
-                      DVC_PAGER=cat uv run dvc
+# AWS_* names that DVC reads, so no key is written into .dvc/config. The
+# wrapper loads the environment with Python so these targets work from both
+# POSIX shells and Windows cmd/PowerShell.
+DVC = uv run python scripts/run_dvc.py
 
 ## Start all four services and wait for the healthchecks
 up:
@@ -273,22 +271,24 @@ lint:
 
 ## Copy .env.example to .env when there is none, as on a fresh runner
 ensure-env:
-	@test -f .env || { cp .env.example .env; echo "No .env found: copied .env.example."; }
+	uv run python scripts/check_prerequisite.py env
 
 ## Stop with a hint when the DVC-tracked dataset is missing, as on a fresh runner
 ensure-data:
-	@test -f data/measurements.csv || { \
-	  echo "data/measurements.csv is missing. Build it from the committed batches:"; \
-	  echo "    make data-v2"; \
-	  exit 1; }
+	uv run python scripts/check_prerequisite.py data
 
 ## The one entry point: lint, tests, pipeline and gate. Both workflows call it
 # TODO(student) Exercise 2: list the targets `ci` runs, in order, after the two
 # ensure-* targets. Reuse targets that already exist above; do not copy their recipes.
 # `make` stops at the first target that fails.
 ci: ensure-env ensure-data
-	@echo "make ci is not written yet (Exercise 2)."
-	@exit 1
+	$(MAKE) --no-print-directory lint
+	$(MAKE) --no-print-directory test-unit
+	$(MAKE) --no-print-directory test-data
+	$(MAKE) --no-print-directory test-eval
+	$(MAKE) --no-print-directory repro
+	$(MAKE) --no-print-directory gate
+	@echo "CI passed: lint, tests, pipeline, gate."
 
 ## The steps of ci.yml on your machine, in the runner's order
 ci-local: ensure-env ensure-data
