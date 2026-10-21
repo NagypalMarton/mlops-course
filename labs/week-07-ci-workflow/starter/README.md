@@ -8,10 +8,10 @@ description:
 
 # Week 7 Lab: CI Workflow
 
-In Weeks 5 and 6 you wrote a data contract and a model gate. They run only when someone
-types a command. **Continuous integration (CI)** makes a machine run the checks on every
-push, on a fresh runner that has nothing but your repository, so a broken change turns
-the build red before anyone merges it. **Continuous training (CT)** retrains the model on a
+In previous weeks, you wrote a data contract and a model gate. Currently, these are run manually.
+**Continuous integration (CI)** makes a machine run the checks on every
+push, on a fresh runner that has nothing but your repository, so a broken change fails
+the build before anyone merges it. **Continuous training (CT)** retrains the model on a
 schedule, and the same checks decide whether the new model is good enough.
 
 Today you set up both with GitHub Actions.
@@ -121,7 +121,7 @@ Do them in order. Exercises 1, 5 and 6 ask for a **written answer**: write it in
 ### Exercise 1: the autograder workflow (≈ 10 min) *(written answer)*
 
 Every push you made since Week 1 ran a workflow: `.github/workflows/autograde.yml` at the
-root of your repository. Until now it ran in the background; now you open it and see what
+root of your repository. Until now it ran in the background; now open it and see what
 it does.
 
 **Do:**
@@ -158,8 +158,7 @@ it does.
 
 When code is used in several places, you write it once, as a function, and call it. A
 pipeline is the same: write it once, as the `make ci` target, and let your laptop and every
-workflow call it. If a workflow lists the commands itself, a change in one copy is missing
-from the other: add the gate to the Makefile, forget `ci.yml`, and CI never runs the gate.
+workflow call it.
 
 **Do:**
 
@@ -199,7 +198,7 @@ from the other: add the gate to the Makefile, forget `ci.yml`, and CI never runs
 
 ### Exercise 3: sort the tests into layers (≈ 15 min)
 
-CI runs each test layer as its own job, so only tests with a layer marker run in CI; a test
+CI runs each test layer as its own job, so only tests with a layer marker run in CI. A test
 without one is left out. Classify the existing tests by the part of the system they check:
 the code, the data or the model.
 
