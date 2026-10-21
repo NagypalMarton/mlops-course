@@ -1,0 +1,19 @@
+# TODO(student) Exercise 5: write the model path. tests/test_workflows.py checks it.
+# - Triggers: workflow_dispatch with a required `reason` input, and a schedule with a
+#   cron. Not push.
+# - One job: rebuild the dataset, retrain and gate through the Makefile, and write
+#   `make gate-summary` to $GITHUB_STEP_SUMMARY. Never call src/main.py.
+# - Stop at the gate: no register, promote or deploy.
+# Reference: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+name: Week 7 CT
+
+on:
+  workflow_dispatch:
+
+jobs:
+  todo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "ct.yml is not written yet (Exercise 5)."
+          exit 1
