@@ -126,7 +126,7 @@ lecture's weather flow, a `try`/`except` around the tasks calls `notify` on the 
 then raises the error again, so the flow run stays Failed in the record. Where a notification is delivered
 (e-mail, chat, a pager) is Week 11.
 
-Lecture: "3 · Tasks, flows and run states" · Lab: Exercises 1 and 5
+Lecture: "3 · Tasks, flows and run states" · Lab: Exercise 1
 
 ### Retries and idempotency
 
@@ -242,6 +242,16 @@ its pool for due runs and starts each one on new infrastructure. A Docker worker
 container, and a Kubernetes worker starts a job. Start with `.serve()` on a machine that stays
 on, and move to a work pool when runs need their own containers or machines.
 
+On a work pool, every run starts in a new container, and the container is removed when the run
+ends. The next run finds only what the last one pushed to storage outside the container. In the
+lab, that is the data and model in Silo (`dvc push`) and the runs in MLflow. Files on the local
+disk, such as `models/model.pkl` or a changed `dvc.lock`, are gone. With `.serve()` on one
+machine, the files stay between runs. So a flow that depends on them works in the lab and breaks
+later on a work pool. Prefect's own results have the same limit. By default they are saved to
+`~/.prefect/storage/`, and a new container "cannot access results saved to the local filesystem
+of the original container" (Prefect docs, "Results"). Pass small values, such as a verdict or a
+run ID, between tasks; push data and models to storage, and pass their path or hash.
+
 Before you put a flow on a schedule, test it the way the scheduler calls it. Prefect builds a
 Pydantic model from the flow's signature and checks the parameters of every run, also the ones the
 server sends as JSON. If Pydantic cannot find a type named in an annotation, the run fails before
@@ -251,7 +261,23 @@ or inside a function. A dataclass or Pydantic model defined at module level work
 `flow.validate_parameters({...})` in a test, or run the flow once through its deployment. Strings,
 numbers and booleans as parameters avoid the problem and are easy to type in the UI.
 
-Lecture: "6 · Scheduling" · Lab: Exercise 6
+Lecture: "6 · Scheduling" · Lab: Exercise 5
+
+### One ML system, several pipelines
+
+Our lab orchestrates one pipeline: training. A system in production usually has three
+(Dowling, 2023). A **feature pipeline** turns raw data into features. A **training pipeline**
+turns features into a model. An **inference pipeline** uses features and a model to make
+predictions. Each has its own schedule and owner: features daily, training weekly, batch predictions
+nightly. They do not call each other. They meet in storage with versions: features in a table
+or a feature store, models in the registry. So one pipeline can fail without stopping the
+others. If Monday's training fails, the nightly predictions still run with the model that the
+registry alias points to. The cost is that the predictions may come from an old model, so
+someone must notice the failed training (Week 11's alerts). In our lab, the features are
+computed inside the model's own `Pipeline` (imputer and scaler), so training and prediction
+cannot compute them differently. Week 9 adds the inference side.
+
+Lecture: "6 · Scheduling"
 
 ### How do you know it ran?
 
@@ -271,7 +297,7 @@ down, or a `.serve()` process that was killed before it could pause the schedule
 has not completed in time, as well as when a run fails. For the Toy Story 2 backup, that check
 would read "no successful backup in 48 hours".
 
-Lecture: "6 · Scheduling" · Lab: Exercises 5 and 6
+Lecture: "6 · Scheduling" · Lab: Exercises 1 and 5
 
 ### When an orchestrator is worth it
 
@@ -335,6 +361,8 @@ flow, and `make serve` serves it on a cron schedule.
 - **Work pool** — a queue of runs on the server, with the settings for where they run.
 - **Worker** — a long-running process that takes runs from a work pool and starts each one on new
   infrastructure.
+- **Feature / training / inference pipeline** — the three pipelines of an ML system: raw data to
+  features, features to a model, features and a model to predictions.
 - **Run history** — what the system did, as opposed to what a process printed.
 - **Partial failure** — some steps ran, some never started, and the state is in between.
 
@@ -343,10 +371,10 @@ flow, and `make serve` serves it on a cron schedule.
 Exercise 1 wires the tasks into a flow and runs it against the self-hosted Prefect server.
 Exercise 2 is written: what Prefect and DVC each give you, and what would happen if you split
 `dvc repro` into several tasks. Exercise 3 sets the retry policy and asks you to defend it.
-Exercise 4 sends a runtime parameter through `params.yaml` and checks in `dvc.lock` that the
-pipeline used it; remove the write step once and see what your check does. Exercise 5 breaks the
-pipeline inside the flow and asks what state that leaves. Exercise 6 puts the flow on a cron and
-asks what must happen before a model trained at 03:00 reaches users.
+Exercise 4 records in each run which values `train` used (from `dvc.lock`) and whether
+`params.yaml` was committed. You try a value without a commit, and the run a schedule would start
+refuses it. Exercise 5 puts the flow on a cron and asks what must happen before a model trained
+at 03:00 reaches users.
 
 The model does not change this week: the metrics stay the same as in Weeks 5–7 (F1 0.6341,
 ROC AUC 0.8345). Check this rather than assume it.
@@ -360,6 +388,9 @@ ROC AUC 0.8345). Check this rather than assume it.
 - **Apache Airflow: architecture overview** — the most common alternative, and the one you are most
   likely to meet at work.
   https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/overview.html
+- **Jim Dowling, "From MLOps to ML Systems with Feature/Training/Inference Pipelines"**
+  (Hopsworks, 2023) — one ML system as three pipelines that meet in storage.
+  https://www.hopsworks.ai/post/mlops-to-ml-systems-with-fti-pipelines
 - **Testing workflows** — `prefect_test_harness` and `task.fn`.
   https://docs.prefect.io/v3/how-to-guides/workflows/test-workflows
 - **Sculley et al., "Hidden Technical Debt in Machine Learning Systems"** (NeurIPS 2015) —
@@ -392,3 +423,8 @@ ROC AUC 0.8345). Check this rather than assume it.
    minutes. No retry has run. Why not, and what would you change in the flow?
 7. A team has one nightly script that exports a table to a file. Would you put it in an
    orchestrator? What is the smallest thing that would tell them it stopped working?
+8. Your flow moves from `.serve()` to a Docker work pool. The second run fails because
+   `models/model.pkl` is missing, although the first run wrote it. Why, and what should the first
+   run have done?
+9. The weekly training pipeline fails on Monday. Should Tuesday's batch predictions stop? What
+   connects the two pipelines, and what does someone still have to notice?

@@ -544,42 +544,16 @@ def cmd_flow(settings: Settings, args) -> None:
         )
 
     verdict = training_flow(
-        settings=settings,
         push=args.push,
         register_model_version=args.register,
+        require_committed_params=args.require_committed,
     )
     print()
     print(f"flow finished — verdict {verdict.get('verdict', '?')}")
 
 
-def cmd_flow_params(settings: Settings, args) -> None:
-    """Exercise 4 — run with a runtime override, then restore params.yaml."""
-    from .flows import demo_parameterised
-    from .tracking import prefect_available
-
-    if not prefect_available(settings):
-        raise RuntimeError(
-            f"No Prefect server at {settings.prefect_api_url} — start it with `make up`."
-        )
-
-    overrides = {}
-    if args.C is not None:
-        overrides["C"] = args.C
-    if args.impute_strategy:
-        overrides["impute_strategy"] = args.impute_strategy
-    if args.family:
-        overrides["family"] = args.family
-    if not overrides:
-        raise ValueError("pass at least one of --C, --impute-strategy, --family")
-
-    verdict = demo_parameterised(settings, **overrides)
-    print()
-    print(f"flow finished with {overrides} — verdict {verdict.get('verdict', '?')}")
-    print("params.yaml restored (a real scheduled run would leave it changed).")
-
-
 def cmd_serve(settings: Settings, args) -> None:
-    """Exercise 6 — a scheduled deployment.
+    """Exercise 5 — a scheduled deployment.
 
     `.serve()` starts a process that listens for scheduled runs. No work pool,
     no worker, no infrastructure block. Work pools are the production answer
@@ -648,7 +622,6 @@ COMMANDS = {
     "ci-explain": cmd_ci_explain,
     # New in Week 8.
     "flow": cmd_flow,
-    "flow-params": cmd_flow_params,
     "serve": cmd_serve,
     "gate-summary": cmd_gate_summary,
 }
@@ -683,10 +656,8 @@ def main() -> None:
     )
     parser.add_argument("--push", action="store_true", help="flow: dvc push after the run")
     parser.add_argument("--register", action="store_true", help="flow: register on a GO")
-    parser.add_argument("--C", type=float, default=None, help="flow-params: override train.C")
-    parser.add_argument("--impute-strategy", default=None, dest="impute_strategy",
-                        help="flow-params: override train.impute_strategy")
-    parser.add_argument("--family", default=None, help="flow-params: override train.family")
+    parser.add_argument("--require-committed", action="store_true", dest="require_committed",
+                        help="flow: refuse an uncommitted params.yaml")
     parser.add_argument("--cron", default="0 3 * * 1", help="serve: schedule (default Mon 03:00)")
     args = parser.parse_args()
 

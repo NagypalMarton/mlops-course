@@ -6,7 +6,7 @@
         ratchet lint fmt-check ci ci-local ct-local ci-fail ci-explain \
         install-ci uninstall-ci test-unit test-data test-eval test-integration \
         ensure-env gate-summary ensure-data flow flow-dvc flow-retry \
-        flow-params flow-fail serve prefect-ui test-flows
+        flow-committed serve prefect-ui test-flows
 
 # .env is SOURCED by bash rather than `include`d, so quoting and comments behave
 # exactly as they do in a terminal.
@@ -504,46 +504,12 @@ flow-dvc: ensure-env
 flow-retry:
 	uv run pytest tests/test_flows.py -q -k "retr or transient or permanent" -v
 
-## Exercise 4 -- a runtime parameter that reaches params.yaml before dvc repro.
-##
-## Defaults to `impute_strategy=mean`, which re-runs train + evaluate and still
-## clears the gate. Try `make flow-params C=0.01` for the other outcome: the
-## parameter lands, the pipeline re-runs, and the GATE REFUSES the result --
-## which is the system working, not the exercise failing.
-##
-## Restores params.yaml afterwards. A lab convenience only; a scheduled run
-## deliberately leaves the change in place (see write_params).
-flow-params: ensure-env ensure-data
-	@if [ -n "$(C)" ]; then \
-	  uv run python src/main.py flow-params --C $(C); \
-	else \
-	  uv run python src/main.py flow-params --impute-strategy $(or $(IMPUTE),mean); \
-	fi
+## Exercise 4 -- the training flow as a scheduled run starts it: it refuses an
+## uncommitted params.yaml.
+flow-committed: ensure-env ensure-data
+	uv run python src/main.py flow --require-committed
 
-## Exercise 5 -- partial failure. Breaks `dvc repro` by planting an impossible
-## row in a raw batch, so the validate stage refuses INSIDE the flow; then
-## shows which tasks ran and which never started.
-flow-fail: ensure-env ensure-data
-	@cp data/raw/batch_01_baseline.csv .batch.flow-bak
-	@printf '99,999,-1,0,0,0,0,0,2,2099-01-01\n' >> data/raw/batch_01_baseline.csv
-	@echo "Planted an impossible row in a raw batch. Running the flow..."
-	@echo "(The fault is in the DATA, so it fails INSIDE the flow -- at the"
-	@echo " validate stage -- rather than before it starts. That is what makes"
-	@echo " this a partial failure rather than a crash.)"
-	@echo
-	@set +e; uv run python src/main.py flow; rc=$$?; set -e; \
-	  echo; echo "flow exit code: $$rc  (non-zero is the point)"; \
-	  mv .batch.flow-bak data/raw/batch_01_baseline.csv; \
-	  $(MAKE) --no-print-directory data-v2 >/dev/null; \
-	  $(DVC) add data/measurements.csv >/dev/null 2>&1; \
-	  echo "raw batch, dataset and DVC pointer restored."; \
-	  echo "  (build_dataset ran on the corrupted batch, so the pointer moved too --"; \
-	  echo "   a demonstration that mutates tracked state has to undo ALL of it.)"; \
-	  echo; echo "reports/last_run.txt -- the failure path reported too:"; \
-	  sed 's/^/  /' reports/last_run.txt 2>/dev/null || echo "  (nothing written)"; \
-	  test "$$rc" -ne 0 || { echo "UNEXPECTED: the flow did not fail."; exit 1; }
-
-## Exercise 6 -- a scheduled deployment. Ctrl-C to stop.
+## Exercise 5 -- a scheduled deployment. Ctrl-C to stop.
 serve: ensure-env ensure-data
 	uv run python src/main.py serve --cron "$(or $(CRON),*/5 * * * *)"
 

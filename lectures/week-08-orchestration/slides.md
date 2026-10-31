@@ -1293,8 +1293,8 @@ hide: true
 
 <div class="flow" style="gap:0.35rem; font-size:0.85rem">
   <div class="node no-shrink" style="width:6.2rem"><b>pull_data</b><br><small v-click="1">3 retries<br>network</small></div>
+  <div class="node no-shrink" style="width:6.2rem"><b>params_committed</b><br><small v-click="2">none<br>local Git</small></div>
   <div class="node no-shrink" style="width:6.2rem"><b>build_dataset</b><br><small v-click="2">none<br>local files</small></div>
-  <div class="node no-shrink" style="width:6.2rem"><b>write_params</b><br><small v-click="2">none<br>local file</small></div>
   <div class="node no-shrink" style="width:6.2rem"><b>run_pipeline</b><br><small v-click="2">none<br>deterministic</small></div>
   <div class="node no-shrink" style="width:6.2rem"><b>push_data</b><br><small v-click="1">3 retries<br>network</small></div>
   <div class="node no-shrink" style="width:6.6rem"><b>register_model</b><br><small v-click="3">2 retries<br>not idempotent</small></div>
@@ -1562,6 +1562,40 @@ The work pool lives on the server and holds each run's settings: image, CPU, mem
 
 ---
 
+# Every run in a new container
+
+<carbon-container-software class="icon-corner" />
+
+<div class="middle">
+
+With a work pool, each run starts in a new container and the container is removed at the end.
+
+<div class="flow" style="margin-top:1.5rem">
+  <div class="node sky no-shrink" style="width:14rem"><ph-cube class="ic" /><b>Run 1</b><br><small>writes <span class="mono">data/</span>, <span class="mono">models/model.pkl</span>, <span class="mono">dvc.lock</span></small></div>
+  <div class="arrow-l">container removed<span class="arrow">→</span></div>
+  <div class="node sky no-shrink" style="width:14rem"><ph-cube class="ic" /><b>Run 2</b><br><small>starts from the image</small></div>
+</div>
+
+<div class="text-center" style="margin-top:1.5rem">
+
+**What does run 2 find from run 1?**
+
+<v-click>
+
+Only what run 1 pushed to storage outside the container.
+
+</v-click>
+
+</div>
+
+</div>
+
+<!--
+With `.serve()` on one machine, files stay between runs, so a flow that depends on them works in the lab and breaks later on a work pool. The same holds for a retry from the UI: Prefect's docs warn that a new container "cannot access results saved to the local filesystem of the original container" (Prefect docs, "Results").
+-->
+
+---
+
 # `.serve()` or a work pool?
 
 <carbon-compare class="icon-corner" />
@@ -1583,6 +1617,44 @@ The work pool lives on the server and holds each run's settings: image, CPU, mem
 
 <!--
 The platform team usually owns the server, the pools and the workers; the ML engineer owns the flow and its deployment.
+-->
+
+---
+
+# One ML system, several pipelines
+
+<carbon-flow class="icon-corner" />
+
+<div class="middle">
+
+<div class="flow" style="gap:0.4rem; margin-top:0.5rem">
+  <div class="node violet no-shrink" style="width:9rem"><ph-table class="ic" /><b>Feature pipeline</b><br><small>raw data → features<br>daily</small></div>
+  <div class="arrow">→</div>
+  <div class="node no-shrink" style="width:7rem"><ph-database class="ic" /><b>Feature store</b></div>
+  <div v-click="1" class="arrow">→</div>
+  <div v-click="1" class="node violet no-shrink" style="width:9rem"><ph-brain class="ic" /><b>Training pipeline</b><br><small>features → model<br>weekly</small></div>
+  <div v-click="1" class="arrow">→</div>
+  <div v-click="1" class="node no-shrink" style="width:7rem"><ph-package class="ic" /><b>Model registry</b></div>
+  <div v-click="2" class="arrow">→</div>
+  <div v-click="2" class="node violet no-shrink" style="width:9rem"><ph-robot class="ic" /><b>Batch inference</b><br><small>features + model → predictions<br>nightly</small></div>
+</div>
+
+<v-click at="3">
+
+<div class="text-center" style="margin-top:1.5rem">
+
+Each pipeline has its own schedule and owner. They meet in storage, not in function calls.[^1][]
+
+</div>
+
+</v-click>
+
+</div>
+
+[^1]: Jim Dowling, "From MLOps to ML Systems with Feature/Training/Inference Pipelines", Hopsworks, 13 Sep 2023. https://www.hopsworks.ai/post/mlops-to-ml-systems-with-fti-pipelines (checked 26 Oct 2026)
+
+<!--
+Dowling: "Each FTI pipeline can be operated independently." Google's MLOps level 2 has the same split. Our lab has only the training pipeline: the features are computed inside the model's own `Pipeline` (imputer, scaler), so training and prediction cannot compute them differently. Week 9 adds the inference side: batch and online.
 -->
 
 ---
@@ -1819,6 +1891,8 @@ layout: section
 - When does a retry help, and when does it hide bad data or create a duplicate?
 - Which values belong in `params.yaml`, and which in a flow parameter?
 - Who starts a scheduled run with `.serve()`, and who with a work pool?
+- What does a run on a work pool find from the previous run?
+- Why does an ML system have several pipelines, and what connects them?
 - What does an orchestrator cost, and when is a cron with a check enough?
 
 </div>
@@ -1909,40 +1983,6 @@ hide: true
 
 <!--
 This is idempotency of a whole run, not of one call (Section 4). A Prefect run can read its planned time from `prefect.runtime.flow_run.scheduled_start_time`. Prefect 3.8.2 has no backfill command: create one run per window with `prefect deployment run --param day=...`. Airflow and Kestra have backfills built in.
--->
-
----
-
-# Every run in a new container
-
-<carbon-container-software class="icon-corner" />
-
-<div class="middle">
-
-With a work pool, each run starts in a new container and the container is removed at the end.
-
-<div class="flow" style="margin-top:1.5rem">
-  <div class="node sky no-shrink" style="width:14rem"><ph-cube class="ic" /><b>Run 1</b><br><small>writes <span class="mono">data/</span>, <span class="mono">models/model.pkl</span>, <span class="mono">dvc.lock</span></small></div>
-  <div class="arrow-l">container removed<span class="arrow">→</span></div>
-  <div class="node sky no-shrink" style="width:14rem"><ph-cube class="ic" /><b>Run 2</b><br><small>starts from the image</small></div>
-</div>
-
-<div class="text-center" style="margin-top:1.5rem">
-
-**What does run 2 find from run 1?**
-
-<v-click>
-
-Only what run 1 pushed to storage outside the container.
-
-</v-click>
-
-</div>
-
-</div>
-
-<!--
-With `.serve()` on one machine, files stay between runs, so a flow that depends on them works in the lab and breaks later on a work pool. The same holds for a retry from the UI: Prefect's docs warn that a new container "cannot access results saved to the local filesystem of the original container" (Prefect docs, "Results").
 -->
 
 ---
@@ -2038,45 +2078,7 @@ A daily job usually takes 2 hours. Today it takes 26. **What should happen to to
 [^1]: Alex Strick van Linschoten, "The Hidden Complexity of ML Pipeline Schedules", ZenML blog, 23 Jan 2026. https://www.zenml.io/blog/the-hidden-complexity-of-ml-pipeline-schedules (checked 26 Oct 2026)
 
 <!--
-Pinterest's Pinball scheduler stored an overrun policy with every schedule: abort the running run, run in parallel, or delay. Prefect: a deployment's `concurrency_limit=1` with `collision_strategy` `ENQUEUE` (wait) or `CANCEL_NEW` (Prefect docs, "Deployments", "Concurrency limiting"). For our weekly retrain, two runs would write the same `params.yaml` and `dvc.lock`, so it should wait.
--->
-
----
-
-# One ML system, several pipelines
-
-<carbon-flow class="icon-corner" />
-
-<div class="middle">
-
-<div class="flow" style="gap:0.4rem; margin-top:0.5rem">
-  <div class="node violet no-shrink" style="width:9rem"><ph-table class="ic" /><b>Feature pipeline</b><br><small>raw data → features<br>daily</small></div>
-  <div class="arrow">→</div>
-  <div class="node no-shrink" style="width:7rem"><ph-database class="ic" /><b>Feature store</b></div>
-  <div v-click="1" class="arrow">→</div>
-  <div v-click="1" class="node violet no-shrink" style="width:9rem"><ph-brain class="ic" /><b>Training pipeline</b><br><small>features → model<br>weekly</small></div>
-  <div v-click="1" class="arrow">→</div>
-  <div v-click="1" class="node no-shrink" style="width:7rem"><ph-package class="ic" /><b>Model registry</b></div>
-  <div v-click="2" class="arrow">→</div>
-  <div v-click="2" class="node violet no-shrink" style="width:9rem"><ph-robot class="ic" /><b>Batch inference</b><br><small>features + model → predictions<br>nightly</small></div>
-</div>
-
-<v-click at="3">
-
-<div class="text-center" style="margin-top:1.5rem">
-
-Each pipeline has its own schedule and owner. They meet in storage, not in function calls.[^1][]
-
-</div>
-
-</v-click>
-
-</div>
-
-[^1]: Jim Dowling, "From MLOps to ML Systems with Feature/Training/Inference Pipelines", Hopsworks, 13 Sep 2023. https://www.hopsworks.ai/post/mlops-to-ml-systems-with-fti-pipelines (checked 26 Oct 2026)
-
-<!--
-Dowling: "Each FTI pipeline can be operated independently." Google's MLOps level 2 has the same split. Our lab has only the training pipeline: the features are computed inside the model's own `Pipeline` (imputer, scaler), so training and prediction cannot compute them differently. Week 9 adds the inference side: batch and online.
+Pinterest's Pinball scheduler stored an overrun policy with every schedule: abort the running run, run in parallel, or delay. Prefect: a deployment's `concurrency_limit=1` with `collision_strategy` `ENQUEUE` (wait) or `CANCEL_NEW` (Prefect docs, "Deployments", "Concurrency limiting"). For our weekly retrain, two runs would write the same `dvc.lock` and model files, so it should wait.
 -->
 
 ---

@@ -9,40 +9,34 @@ has to answer is why there is now a second one:
 
 They are not competitors and this module does not stage them as one. The flow
 calls `dvc repro` as a single task for the content-hashed core, and owns the
-things DVC has no opinion about: the network edges, the retries, the runtime
-parameters, the schedule, and the record that any of it happened.
+things DVC has no opinion about: the network edges, the retries, the run
+options, the schedule, and the record that any of it happened.
 
     DVC tells you what is out of date. Prefect tells you what happened.
 """
 
 from __future__ import annotations
 
-import shutil
-from pathlib import Path
-
 from prefect import flow, get_run_logger  # noqa: F401
 
 from .config import Settings, load_settings  # noqa: F401
-# Your toolbox for Exercises 1 and 6. The `noqa` is here because the flow
+# Your toolbox for Exercises 1, 4 and 5. The `noqa` is here because the flow
 # bodies below are not written yet — once you wire the tasks up, every one of
 # these is used and the marker can go.
 from .tasks import (  # noqa: F401
     build_dataset,
     notify,
+    params_committed,
     pull_data,
     push_data,
+    read_params_used,
     register_model,
     run_pipeline,
-    verify_params_applied,
-    write_params,
 )
 
 
 @flow(name="diabetes-training", log_prints=True)
 def training_flow(
-    C: float | None = None,
-    impute_strategy: str | None = None,
-    family: str | None = None,
     push: bool = False,
     # NOT `register`: Prefect builds a pydantic model from the flow's
     # signature, and `register` shadows an attribute on its base class,
@@ -50,13 +44,14 @@ def training_flow(
     # part of a public API here — they appear in the UI and in
     # `run_deployment` calls — so pick ones that do not collide.
     register_model_version: bool = False,
+    require_committed_params: bool = False,
 ) -> dict:
     """prepare -> validate -> train -> evaluate -> gate, with a run history.
 
-    Parameters are FLOW parameters, which is what lets you re-run this from the
-    UI with a different `C` and no code change. They are funnelled through
-    `write_params` into `params.yaml` before the pipeline runs -- see that
-    task's docstring for why anything else silently produces a stale model.
+    The flow parameters choose what this run does. The hyperparameters stay in
+    `params.yaml` and change with a commit. A run from the terminal may use an
+    uncommitted `params.yaml`, for an experiment; with
+    `require_committed_params=True` the run refuses it.
 
     `push` and `register_model_version` default to False because they need the
     stack. The flow is useful without them, which is what makes it testable.
@@ -77,23 +72,23 @@ def training_flow(
     """
     # TODO(student) Exercise 1 — wire the tasks together.
     #
+    #   settings = load_settings()
     #   build_dataset(settings)
-    #   applied = write_params(settings, overrides)      <- BEFORE the pipeline
     #   verdict = run_pipeline(settings)
-    #   verify_params_applied(settings, applied)         <- AFTER it
     #   notify(settings, verdict)
     #
-    # Build `overrides` from the C / impute_strategy / family parameters,
-    # skipping any that are None.
+    # `notify` has to run on the failure path too. Wrap the body in
+    # try/except, notify with the error, and re-raise. A flow that only
+    # reports its successes is the Toy Story 2 backup with extra steps.
     #
-    # Two things that are easy to get wrong, and that the tests check:
+    # TODO(student) Exercise 4 — record the parameters, and refuse
+    # uncommitted ones when asked.
     #
-    #   * `write_params` runs BEFORE `run_pipeline`, and
-    #     `verify_params_applied` AFTER it. The question is not "did we set the
-    #     parameter" but "did the thing that decides staleness see it".
-    #   * `notify` has to run on the FAILURE path too. Wrap the body in
-    #     try/except, notify with the error, and re-raise. A flow that only
-    #     reports its successes is the Toy Story 2 backup with extra steps.
+    # Before any work, ask `params_committed` whether params.yaml matches the
+    # last commit. When `require_committed_params` is set and it does not,
+    # raise a RuntimeError that says how to fix it. After the pipeline, read
+    # the values train used with `read_params_used`, and pass them and the
+    # commit state to `notify` (see its signature in tasks.py).
     print("training_flow is not implemented yet — see the TODO in flows.py (Exercise 1).")
     return {}
 
@@ -102,9 +97,10 @@ def training_flow(
 def scheduled_flow() -> dict:
     """What a cron actually runs: fetch the current data, then train and gate.
 
-    The only difference from `training_flow` is `pull_data` at the front --
-    a scheduled run cannot assume the workspace is up to date, because nobody
-    was here to make it so.
+    It differs from a run from the terminal in two ways. `pull_data` comes
+    first, because a scheduled run cannot assume the workspace is up to date.
+    And the training flow refuses an uncommitted `params.yaml`, because nobody
+    is there to say which values built the model.
 
     Note what it does NOT do: register or promote. Two reasons, and the second
     is the one worth arguing about.
@@ -115,29 +111,13 @@ def scheduled_flow() -> dict:
          condition for a release, not a sufficient one. Week 10 decides what
          else is required.
     """
-    # TODO(student) Exercise 6 — what a cron actually runs.
+    # TODO(student) Exercise 5 — what a cron actually runs.
     #
     # `pull_data` first: a scheduled run cannot assume the workspace is up to
-    # date, because nobody was here to make it so. Then the training flow.
+    # date, because nobody was here to make it so. Then the training flow,
+    # with the flow parameter that refuses an uncommitted params.yaml.
     #
     # Do NOT register or promote here, and be ready to say why in a sentence
     # that is not about credentials.
-    print("scheduled_flow is not implemented yet — see the TODO in flows.py (Exercise 6).")
+    print("scheduled_flow is not implemented yet — see the TODO in flows.py (Exercise 5).")
     return {}
-
-
-def demo_parameterised(settings: Settings, **overrides) -> dict:
-    """`make flow-params` -- run with overrides, then put params.yaml back.
-
-    The restore is a LAB convenience so an exercise does not leave the working
-    tree dirty. A real scheduled run leaves the mutation in place on purpose:
-    reverting it would make `dvc.lock` and `params.yaml` disagree, and
-    `dvc status` would then report the pipeline dirty forever.
-    """
-    params = settings.project_root / "params.yaml"
-    backup = Path(str(params) + ".flow-bak")
-    shutil.copy(params, backup)
-    try:
-        return training_flow(**overrides)
-    finally:
-        shutil.move(str(backup), params)

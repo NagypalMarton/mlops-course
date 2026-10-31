@@ -20,11 +20,10 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
-import yaml
+import yaml  # noqa: F401 -- you need it in Exercise 4
 from prefect import get_run_logger, task
 from prefect.tasks import exponential_backoff
 
@@ -135,54 +134,19 @@ def build_dataset(settings: Settings, version: int = 2) -> str:
 
 
 @task
-def write_params(settings: Settings, overrides: dict | None = None) -> dict:
-    """Write runtime parameters into `params.yaml` BEFORE `dvc repro` runs.
-
-    This is the least obvious task in the flow and the most important, so the
-    reasoning is here rather than in a slide.
-
-    `dvc repro` decides what is stale by hashing `params.yaml` and the declared
-    files. A Prefect parameter passed straight into a Python function is
-    invisible to it: DVC sees nothing changed, skips `train`, and the run
-    reports success while producing the PREVIOUS model. Correct caching, wrong
-    result -- the same failure class this course hit in Week 4 with an
-    undeclared dependency.
-
-    So: whatever the flow was asked to run has to be visible to the thing that
-    decides what is stale.
-
-    **The orchestrator must not become a second source of truth for
-    configuration.**
-
-    Two honest costs, and Exercise 4 asks about the second:
-
-      1. This mutates a Git-tracked file as a side effect of running a flow.
-         The mutation is deliberately NOT reverted afterwards -- reverting it
-         would leave `dvc.lock` recording `train.C: 0.01` while `params.yaml`
-         says `1.0`, so `dvc status` would report the pipeline dirty forever.
-         Leave it visible; it is the audit trail.
-      2. Two concurrent runs race on this file. In this lab there is one run at
-         a time, so it is safe. In production it is not, and that is why
-         `dvc exp run --set-param` exists.
-    """
-    if not overrides:
-        return {}
-
-    path = settings.project_root / "params.yaml"
-    document = yaml.safe_load(path.read_text())
-
-    applied: dict = {}
-    for dotted, value in overrides.items():
-        node = document
-        *parents, leaf = dotted.split(".")
-        for key in parents:
-            node = node.setdefault(key, {})
-        node[leaf] = value
-        applied[dotted] = value
-
-    path.write_text(yaml.safe_dump(document, sort_keys=False))
-    _log().info("wrote %s into params.yaml", applied)
-    return applied
+def params_committed(settings: Settings) -> bool:
+    """True when `params.yaml` has no uncommitted changes in Git."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--", "params.yaml"],
+        cwd=settings.project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        _log().warning("cannot check params.yaml in Git: %s", result.stderr.strip())
+        return False
+    return result.stdout.strip() == ""
 
 
 @task
@@ -224,47 +188,21 @@ def run_pipeline(settings: Settings) -> dict:
 
 
 @task
-def verify_params_applied(settings: Settings, requested: dict) -> dict:
-    """Assert the pipeline actually SAW the parameters the flow was asked to run.
+def read_params_used(settings: Settings, stage: str = "train") -> dict:
+    """The parameter values `stage` used in its last run, as `dvc.lock` records them.
 
-    `write_params` is a step somebody can forget, reorder, or break. This is
-    the check that turns forgetting it into a loud failure instead of a stale
-    model reported as a success.
-
-    `dvc.lock` records parameter VALUES, not just hashes, which is what makes
-    this cheap:
+    `dvc.lock` stores the values, not only a hash:
 
         train:
           params:
             params.yaml:
               train.C: 1.0
-              train.family: logreg
-
-    The generalisation, and it is the same shape as Week 4's "if your stage
-    reads a file, that file is a dep" and Week 6's "a gate is only as strong as
-    the thing that consults it":
-
-        **An override is only real if the thing that decides staleness saw it.
-        So assert that it did.**
     """
-    # TODO(student) Exercise 4 — assert the pipeline SAW these parameters.
-    #
-    # `dvc.lock` records parameter VALUES, not just hashes:
-    #
-    #     train:
-    #       params:
-    #         params.yaml:
-    #           train.C: 1.0
-    #
-    # Read it, compare every entry of `requested` against what is recorded, and
-    # raise a RuntimeError naming both numbers when they disagree.
-    #
-    # Why this exists: `write_params` is a step somebody can forget or reorder.
-    # Without this check, forgetting it produces a run that reports SUCCESS and
-    # ships the previous model. Try it — comment out `write_params` in
-    # flows.py, run `make flow-params C=0.005`, and watch `run_pipeline`
-    # complete.
-    return requested
+    # TODO(student) Exercise 4: read dvc.lock and return the parameters of
+    # `stage` as one dictionary of name -> value, for example
+    # {"train.C": 1.0, "train.family": "logreg"}. Read the file, not
+    # params.yaml: the record must say what the stage used.
+    return {}
 
 
 # ── Retries: the network edges, and nowhere else ────────────────────────────
@@ -346,7 +284,13 @@ def register_model(settings: Settings) -> str | None:
 
 
 @task
-def notify(settings: Settings, verdict: dict, error: str | None = None) -> Path:
+def notify(
+    settings: Settings,
+    verdict: dict,
+    error: str | None = None,
+    params: dict | None = None,
+    committed: bool | None = None,
+) -> Path:
     """Write a one-line record of how the run ended.
 
     A file, not an email. Where a notification is DELIVERED is a Week 11
@@ -370,19 +314,11 @@ def notify(settings: Settings, verdict: dict, error: str | None = None) -> Path:
     else:
         line = "no verdict recorded"
 
+    if params and not error:
+        values = ", ".join(f"{name}={value}" for name, value in sorted(params.items()))
+        state = "committed" if committed else "uncommitted"
+        line += f" | {values} | params.yaml {state}"
+
     path.write_text(line + "\n")
     _log().info("notify: %s", line)
     return path
-
-
-@task
-def restore_params(settings: Settings, backup: Path | None) -> None:
-    """Put `params.yaml` back, for the demonstration targets only.
-
-    Not part of the production flow. `make flow-params` uses it so a lab
-    exercise does not leave the working tree dirty; a real scheduled run leaves
-    the mutation in place on purpose (see `write_params`).
-    """
-    if backup and backup.exists():
-        shutil.move(str(backup), settings.project_root / "params.yaml")
-        _log().info("params.yaml restored")
