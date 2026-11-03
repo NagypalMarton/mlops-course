@@ -68,6 +68,8 @@ def _dvc_env() -> dict:
         env.setdefault("AWS_ACCESS_KEY_ID", env["S3_ACCESS_KEY"])
     if "S3_SECRET_KEY" in env:
         env.setdefault("AWS_SECRET_ACCESS_KEY", env["S3_SECRET_KEY"])
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
     return env
 
 
@@ -103,19 +105,26 @@ def _run_dvc(settings: Settings, *args: str) -> str:
 # `retry_jitter_factor` here, then decide which tasks below get them.
 # `tests/test_flows.py` asserts your answer — and asserts that the local,
 # deterministic tasks did NOT get them.
+# `run_pipeline` should not use `retries=3`, because a deterministic pipeline
+# failure will be repeated without changing the cause and only delays the
+# useful error report.
+# Retrying `register_model` is not fully safe: if MLflow stores the new version
+# but the response is lost, a retry can create a duplicate; its existing
+# run-id check narrows that window but does not close it atomically.
+##
+# (a) A run_pipeline determinisztikus, helyi művelet: ha egyszer hibázik, az ok valószínűleg nem szűnik meg a következő próbálkozásra. A retries=3 ezért csak késlelteti a valódi hiba jelzését, miközben ugyanazt a hibát ismétli meg.
+# (b) A `register_model` task nem teljesen biztonságos újrapróbálni, mert az MLflow-ban új modellverziót hoz létre, így egy elveszett válasz után a retry duplikált verziót készíthet. A meglévő `run_id`-ellenőrzés felismeri a már regisztrált futtatást, ezért csökkenti a duplikáció esélyét, de nem szünteti meg teljesen a versenyhelyzetből adódó kockázatot.
 NETWORK_RETRIES = {
-    "retries": 0,
+    "retries": 3,
     # Doubling, so a service that is restarting gets a chance to finish.
-    # "retry_delay_seconds": exponential_backoff(backoff_factor=2),
+    "retry_delay_seconds": exponential_backoff(backoff_factor=2),
     # Jitter matters more than it looks. Without it, every task that failed at
     # the same moment retries at the same moment, and a service that fell over
     # because of load gets hit by the identical burst that felled it.
-    # "retry_jitter_factor": 0.5,
+    "retry_jitter_factor": 0.5,
 }
 
-
 # ── No retries: local, deterministic work ───────────────────────────────────
-
 
 @task
 def build_dataset(settings: Settings, version: int = 2) -> str:
@@ -202,7 +211,21 @@ def read_params_used(settings: Settings, stage: str = "train") -> dict:
     # `stage` as one dictionary of name -> value, for example
     # {"train.C": 1.0, "train.family": "logreg"}. Read the file, not
     # params.yaml: the record must say what the stage used.
-    return {}
+    lock_path = settings.project_root / "dvc.lock"
+    if not lock_path.exists():
+        raise FileNotFoundError(f"DVC lock file not found: {lock_path}")
+
+    with lock_path.open(encoding="utf-8") as handle:
+        lock = yaml.safe_load(handle) or {}
+
+    try:
+        params = lock["stages"][stage]["params"]["params.yaml"]
+    except KeyError as error:
+        raise KeyError(f"stage {stage!r} has no recorded params in {lock_path}") from error
+
+    if not isinstance(params, dict):
+        raise ValueError(f"recorded params for stage {stage!r} are not a mapping")
+    return params
 
 
 # ── Retries: the network edges, and nowhere else ────────────────────────────

@@ -8,8 +8,8 @@
         ensure-env gate-summary ensure-data flow flow-dvc flow-retry \
         flow-committed serve prefect-ui test-flows
 
-# .env is SOURCED by bash rather than `include`d, so quoting and comments behave
-# exactly as they do in a terminal.
+# DVC credentials are loaded through Python rather than shell-specific `.env`
+# syntax, so the targets work from PowerShell as well as from Unix shells.
 #
 # DVC talks to Silo directly and reads the AWS_* names, so we map the Silo
 # block from .env onto them here. That way one credential block in .env serves
@@ -17,10 +17,7 @@
 #
 # DVC_PAGER=cat keeps `dvc dag` and `dvc metrics diff` from dropping a
 # classroom terminal into `less`.
-DOTENV = set -a && . ./.env && set +a
-DVC    = $(DOTENV) && AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY" \
-                      AWS_SECRET_ACCESS_KEY="$$S3_SECRET_KEY" \
-                      DVC_PAGER=cat uv run dvc
+DVC    = uv run python scripts/run_dvc.py
 
 ## Bring up all four services and wait for healthchecks
 up:
@@ -52,9 +49,9 @@ dvc-init:
 	$(DVC) config core.autostage true
 	$(DVC) config core.analytics false
 	$(DVC) config core.check_update false
-	$(DOTENV) && uv run dvc remote add -d $$DVC_REMOTE_NAME s3://$$DVC_BUCKET/$$DVC_REMOTE_PATH
-	$(DOTENV) && uv run dvc remote modify $$DVC_REMOTE_NAME endpointurl http://127.0.0.1:$$S3_API_PORT
-	@echo
+	$(DVC) remote-add
+	$(DVC) remote-modify-endpoint
+	@echo.
 	@echo "--- .dvc/config (note: NO credentials in here) ---"
 	@cat .dvc/config
 
@@ -373,16 +370,10 @@ lint:
 ## The DVC-tracked dataset is absent on a fresh clone by design -- it is data,
 ## not source. Rebuild it from the committed batches rather than pulling it.
 ensure-data:
-	@test -f data/measurements.csv || { \
-	  echo "data/measurements.csv is missing -- it is DVC-tracked, so a fresh"; \
-	  echo "clone does not have it. Rebuild it from the committed raw batches:"; \
-	  echo "    make data-v2"; \
-	  echo "(CI does exactly this, which is why it needs no object store.)"; \
-	  exit 1; }
+	uv run python scripts/ensure_project.py data
 
 ensure-env:
-	@test -f .env || { cp .env.example .env; \
-	  echo "no .env found -> copied .env.example (defaults; no secrets in this lab)"; }
+	uv run python scripts/ensure_project.py env
 
 ci: ensure-env ensure-data lint test-fast repro gate
 	@echo
@@ -495,9 +486,9 @@ flow-register: ensure-env ensure-data
 flow-dvc: ensure-env
 	@echo "=== DVC's graph: what is stale? ==="
 	@$(DVC) dag
-	@echo
+	@echo.
 	@echo "=== Prefect's graph: what ran, when, how many times, and what then? ==="
-	@echo "  Open $(shell grep -E '^PREFECT_API_URL' .env 2>/dev/null | sed 's|.*=||;s|/api||') and look at a flow run."
+	@uv run python -c "from dotenv import dotenv_values; print('  Open ' + dotenv_values('.env')['PREFECT_API_URL'].removesuffix('/api') + ' and look at a flow run.')"
 	@echo "  DVC cannot answer any of those questions; Prefect cannot answer DVC's."
 
 ## Exercise 3 -- prove the retry policy is real, not decorative.

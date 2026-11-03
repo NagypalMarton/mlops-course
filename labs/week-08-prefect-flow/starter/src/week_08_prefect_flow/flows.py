@@ -14,7 +14,6 @@ options, the schedule, and the record that any of it happened.
 
     DVC tells you what is out of date. Prefect tells you what happened.
 """
-
 from __future__ import annotations
 
 from prefect import flow, get_run_logger  # noqa: F401
@@ -89,8 +88,23 @@ def training_flow(
     # raise a RuntimeError that says how to fix it. After the pipeline, read
     # the values train used with `read_params_used`, and pass them and the
     # commit state to `notify` (see its signature in tasks.py).
-    print("training_flow is not implemented yet — see the TODO in flows.py (Exercise 1).")
-    return {}
+    settings = load_settings()
+    committed: bool | None = None
+    try:
+        committed = params_committed(settings)
+        if require_committed_params and not committed:
+            raise RuntimeError(
+                "params.yaml has uncommitted changes; commit the change or restore it "
+                "with `git restore params.yaml` before running this flow."
+            )
+        build_dataset(settings)
+        verdict = run_pipeline(settings)
+        params = read_params_used(settings)
+        notify(settings, verdict, params=params, committed=committed)
+        return verdict
+    except Exception as error:
+        notify(settings, {}, error=str(error), committed=committed)
+        raise
 
 
 @flow(name="diabetes-training-with-pull", log_prints=True)
@@ -119,5 +133,9 @@ def scheduled_flow() -> dict:
     #
     # Do NOT register or promote here, and be ready to say why in a sentence
     # that is not about credentials.
-    print("scheduled_flow is not implemented yet — see the TODO in flows.py (Exercise 5).")
-    return {}
+    settings = load_settings()
+    pull_data(settings)
+    return training_flow(
+        require_committed_params=True,
+        register_model_version=False,
+    )
