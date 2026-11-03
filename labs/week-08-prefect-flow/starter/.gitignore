@@ -1,5 +1,6 @@
 # Environment and secrets — never commit
 .env
+.\README.md
 
 # Scratch copies made by `make gate-fail`, `make data-gate-fail` and
 # `make ratchet` while they plant a fault (in params.yaml, in the tracked data,

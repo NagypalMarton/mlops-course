@@ -1,249 +1,257 @@
-# Week 8 Lab — Prefect Flow
+# 8. heti labor — Prefect flow
 
-In Week 7, you used GitHub Actions to run tests and the quality gate automatically. Scheduled
-training jobs also need a way to record their status and report failures. In this lab, you use
-Prefect to run and schedule the training pipeline, inspect its history and configure retries.
+A 7. héten a GitHub Actions-t használtad a tesztek és a minőségkapu (quality gate) automatikus futtatására. Az ütemezett
+tanítási feladatoknak is szükségük van egy megoldásra, amely rögzíti az állapotukat és jelenti a hibákat. Ezen a laboron
+a Prefectet használod a tanítási pipeline futtatására és ütemezésére, az előzmények ellenőrzésére, valamint az újrapróbálások
+(retries) beállítására.
 
-## What you already have
+## Amivel már rendelkezel
 
-The lab builds on the Compose stack, MLflow, DVC with Silo and the
-`validate → prepare → train → evaluate → gate` pipeline from Weeks 1–7. It also keeps both
-contracts, the quality gate, `make ci` and both GitHub Actions workflows. The model, metrics
-and thresholds stay the same.
+A labor a Compose stackre, az MLflow-ra, a Silóval támogatott DVC-re és az 1–7. hét
+`validate → prepare → train → evaluate → gate` pipeline-jára épít. Megtartja mindkét
+szerződést, a minőségkaput, a `make ci` célt és mindkét GitHub Actions-munkafolyamatot. A modell, a metrikák
+és a küszöbértékek változatlanok maradnak.
 
-New this week:
+Újítások ezen a héten:
 
-- Prefect, the orchestrator: `prefect==3.8.2`, with a server image pinned to the same version.
-- A Prefect server in `compose.yaml`. It stores its data in a second database in the existing
-   Postgres container.
-- `tasks.py` and `flows.py`. Most tasks are provided. You will combine them in a flow, configure
-   retries and check the results.
+- Prefect, az orkestrátor: `prefect==3.8.2`, egy hozzá igazított szerverképpel.
+- Egy Prefect-szerver a `compose.yaml` fájlban. Az adatait a meglévő Postgres-konténerben
+   található második adatbázisban tárolja.
+- `tasks.py` és `flows.py`. A legtöbb feladat (task) már rendelkezésre áll. Ezeket egy flow-ba
+    fogod összeállítani, beállítod az újrapróbálásokat, és ellenőrzöd az eredményeket.
 
-`dvc repro` runs pipeline stages and skips those whose inputs have not changed. The Prefect flow
-calls `dvc repro` as one task. It also runs network operations, manages retries and scheduling,
-and records the state of each flow and task run.
+A `dvc repro` lefuttatja a pipeline szakaszait, és kihagyja azokat, amelyek bemenetei nem változtak. A Prefect-flow
+egyetlen feladatként hívja meg a `dvc repro` parancsot. Emellett hálózati műveleteket futtat, kezeli az újrapróbálásokat és
+az ütemezést, valamint rögzíti minden flow- és task-futtatás állapotát.
 
-## Based on (official tutorials)
+## Alapok (hivatalos oktatóanyagok)
 
-- **Prefect quickstart (primary template):** https://docs.prefect.io/v3/get-started/quickstart
-- **Flows and tasks:** https://docs.prefect.io/v3/concepts/flows · https://docs.prefect.io/v3/concepts/tasks
-- **Retries:** https://docs.prefect.io/v3/how-to-guides/workflows/retries
-- **Self-hosting a server:** https://docs.prefect.io/v3/advanced/self-hosted
-- **Deployments and schedules:** https://docs.prefect.io/v3/how-to-guides/deployments/create-schedules
-- **Testing flows (`prefect_test_harness`):** https://docs.prefect.io/v3/how-to-guides/workflows/test-workflows
+- **Prefect – gyors kezdés (fő sablon):** https://docs.prefect.io/v3/get-started/quickstart
+- **Flow-k és taskok:** https://docs.prefect.io/v3/concepts/flows · https://docs.prefect.io/v3/concepts/tasks
+- **Újrapróbálások:** https://docs.prefect.io/v3/how-to-guides/workflows/retries
+- **Saját üzemeltetésű szerver:** https://docs.prefect.io/v3/advanced/self-hosted
+- **Telepítések és ütemezések:** https://docs.prefect.io/v3/how-to-guides/deployments/create-schedules
+- **Flow-k tesztelése (`prefect_test_harness`):** https://docs.prefect.io/v3/how-to-guides/workflows/test-workflows
 
-## Prerequisites
+## Előfeltételek
 
-- Weeks 1–7 working: `uv`, Docker, Git.
-- If you are reusing a Postgres volume from an earlier week, it will not have the `prefectdb`
-  database. See Troubleshooting.
+- Az 1–7. hét működő környezete: `uv`, Docker, Git.
+- Ha egy korábbi hét Postgres-kötetét használod újra, az nem fogja tartalmazni a `prefectdb`
+  adatbázist. Lásd a Hibaelhárítás című részt.
 
-## Setup
+## Telepítés
 
 ```bash
-# Stop any other lab stack; the labs share the 55xx host ports
+# Állítsd le az összes többi laborstacket; a laborok megosztják az 55xx gazdagépportokat
 cd ../../week-07-ci-workflow/starter && make down; cd -
 
 cp .env.example .env
-make sync          # install all dependency groups
-make up            # start postgres, s3, mc, mlflow and prefect
-make data-v2       # rebuild the DVC-tracked dataset from the committed raw batches
-make repro         # the Week 7 pipeline, unchanged: should end with a GO
-make prefect-ui    # prints the UI address: http://127.0.0.1:5520
+make sync          # telepít minden függőségi csoportot
+make up            # elindítja a postgres-, s3-, mc-, mlflow- és prefect-szervereket
+make data-v2       # újraépíti a DVC-vel nyomon követett adatkészletet a commitolt nyers kötegekből
+make repro         # a 7. hét változatlan pipeline-ja: GO-val kell zárulnia
+make prefect-ui    # kiírja a felhasználói felület címét: http://127.0.0.1:5520
 ```
 
-Open the Prefect UI. It has no flow runs yet.
+Nyisd meg a Prefect felhasználói felületét. Még nincsenek benne flow-futtatások.
 
-Run `uv run pytest -q` before starting the exercises. With the stack down, the expected result is:
+Futtasd az `uv run pytest -q` parancsot a gyakorlatok megkezdése előtt. Leállított stackkel a várt eredmény:
 
 ```
 181 passed, 25 skipped
 ```
 
-13 of the skipped tests are in `tests/test_flows.py`. Each has a `@pytest.mark.skip` marking
-its exercise. Delete the marker when you implement the code it covers, then run the test. The
-other 12 tests require infrastructure. With the stack up, the 8 MLflow-link tests among them run.
+A kihagyott tesztek közül 13 a `tests/test_flows.py` fájlban található. Mindegyik előtt egy, az
+adott gyakorlatot jelölő `@pytest.mark.skip` található. Töröld a jelölőt, amikor megvalósítod
+az általa lefedett kódot, majd futtasd a tesztet. A másik 12 teszt infrastruktúrát igényel. A stack
+elindítása után közülük a 8 MLflow-hivatkozást ellenőrző teszt is lefut.
 
-`tests/test_scope.py` checks that the code does not import tools introduced in later weeks.
-Prefect installs some of those tools as dependencies; the test allows them to be installed.
+A `tests/test_scope.py` ellenőrzi, hogy a kód nem importál a későbbi hetekben bevezetett eszközöket.
+A Prefect némelyiket függőségként telepíti; a teszt engedélyezi, hogy ezek telepítve legyenek.
 
-## Exercises
+## Gyakorlatok
 
-Complete the five exercises in order. Write your answers to Exercises 2 and 5 in `answers.md`
-in this directory, and commit the file with your code.
+Végezd el az öt gyakorlatot sorrendben. A 2. és az 5. gyakorlatra adott válaszaidat ebben a könyvtárban
+található `answers.md` fájlba írd, és a fájlt a kódoddal együtt commitold.
 
-### Exercise 1 — Tasks and a flow (`make flow`)
+### 1. gyakorlat — Taskok és egy flow (`make flow`)
 
-A Prefect task is a step in a workflow. A flow calls tasks and records each run, including its
-state, duration and logs. A team can use that record to find where a training run failed and
-what completed before the failure. In this exercise, you combine the provided tasks into a
-training flow and inspect its run in the Prefect UI.
+Egy Prefect-task egy munkafolyamat egy lépése. Egy flow meghívja a taskokat, és rögzíti minden futtatás
+állapotát, időtartamát és naplóit. A csapat ezt a nyilvántartást használhatja annak megállapítására, hogy
+hol hibásodott meg egy tanítási futtatás, és mi készült el a hiba előtt. Ebben a gyakorlatban a megadott
+taskokat egy tanítási flow-ba rendezed, majd megvizsgálod annak futtatását a Prefect felületén.
 
-Fill in `training_flow` in `flows.py`. The TODO lists the tasks in order. Call `notify` when the
-flow fails as well as when it succeeds.
+Töltsd ki a `flows.py` fájlban található `training_flow` függvényt. A TODO a taskokat sorrendben felsorolja.
+Hívd meg a `notify` függvényt akkor is, amikor a flow sikertelen, és akkor is, amikor sikeres.
 
-Then run `make flow` and open the run in the UI. Find the task list, each task's state and
-duration, and the log lines from `dvc repro` inside `run_pipeline`.
+Ezután futtasd a `make flow` parancsot, és nyisd meg a futtatást a felületen. Keresd meg a tasklistát,
+az egyes taskok állapotát és időtartamát, valamint a `run_pipeline` belsejében futó `dvc repro` naplósorait.
 
-**Check:** remove the skip markers in "The training flow" section of
-`tests/test_flows.py`, and both tests pass. `make flow` ends with `Finished in state Completed()`,
-the gate verdict is `GO`, `reports/last_run.txt` records it, and your metrics are byte-identical
-to Week 7. The run shows up in the UI with every task in it.
+**Ellenőrzés:** távolítsd el a kihagyási jelölőket a `tests/test_flows.py` „A tanítási flow” szakaszában,
+és mindkét tesztnek sikeresnek kell lennie. A `make flow` futtatásának vége
+`Finished in state Completed()`, a kapu eredménye `GO`, ezt a `reports/last_run.txt` rögzíti,
+a metrikáid pedig bájtra pontosan egyeznek a 7. héten kapottakkal. A futtatás minden taskjával együtt
+megjelenik a felületen.
 
-### Exercise 2 — DVC and Prefect responsibilities (`make flow-dvc`) — **written**
+### 2. gyakorlat — A DVC és a Prefect feladatai (`make flow-dvc`) — **írásbeli**
 
-DVC and Prefect both describe workflows as graphs, but they track different information. DVC
-tracks pipeline stages and their file dependencies; Prefect records flow and task runs. When a
-team uses both, it needs to decide which tool manages each part of the workflow. In this exercise,
-you compare the graphs and consider how to divide that work.
+A DVC és a Prefect is gráfokként írja le a munkafolyamatokat, de eltérő információkat követ nyomon. A DVC
+a pipeline-szakaszokat és azok fájlfüggőségeit követi; a Prefect a flow- és task-futtatásokat rögzíti. Ha egy
+csapat mindkettőt használja, el kell döntenie, hogy a munkafolyamat egyes részeit melyik eszköz kezelje.
+Ebben a gyakorlatban összehasonlítod a gráfokat, és átgondolod, hogyan osztható fel ez a feladat.
 
-Run `make flow-dvc` to print the DVC graph and the address of the Prefect UI. Compare the DVC
-graph's file dependencies with the tasks and run states shown by Prefect.
+Futtasd a `make flow-dvc` parancsot a DVC-gráf és a Prefect felületének címének kiírásához. Hasonlítsd össze
+a DVC-gráf fájlfüggőségeit a Prefect által megjelenített taskokkal és futtatási állapotokkal.
 
-1. Name three capabilities Prefect provides for this lab that DVC does not, and one capability
-   DVC provides that Prefect does not. Explain which problem each capability solves.
-2. `run_pipeline` calls `dvc repro` as a single task. What would you lose by replacing it with
-   one Prefect task per DVC stage? When might splitting the stages into separate tasks be useful?
+1. Nevezz meg három olyan képességet, amelyet a Prefect biztosít ehhez a laborhoz, a DVC viszont nem,
+   valamint egy olyan képességet, amelyet a DVC biztosít, a Prefect pedig nem. Magyarázd el, hogy az egyes
+   képességek milyen problémát oldanak meg.
+2. A `run_pipeline` egyetlen taskként hívja meg a `dvc repro` parancsot. Mit veszítenél, ha ezt szakaszonként
+   egy-egy Prefect-taskkal helyettesítenéd? Mikor lehet hasznos a szakaszokat külön taskokra bontani?
 
-### Exercise 3 — Configure retries (`make flow-retry`)
+### 3. gyakorlat — Újrapróbálások beállítása (`make flow-retry`)
 
-A network request can fail temporarily and succeed on another attempt. A retry runs the failed
-task again after a delay. Exponential backoff increases that delay; jitter varies it so retries
-are less likely to happen at the same time. Repeating an operation can also cause unwanted
-effects, so a team must choose which tasks are safe to retry. In this exercise, you configure
-and test a retry policy for the network tasks.
+Egy hálózati kérés átmenetileg meghiúsulhat, majd egy újabb próbálkozásra sikerülhet. Az újrapróbálás
+egy késleltetés után ismét lefuttatja a sikertelen taskot. Az exponenciális visszalépés növeli ezt a késleltetést;
+a jitter változatossá teszi, így kisebb az esélye, hogy az újrapróbálások egyszerre történnek. Egy művelet
+ismétlése nem kívánt hatásokkal is járhat, ezért a csapatnak ki kell választania, mely taskokat biztonságos
+újrapróbálni. Ebben a gyakorlatban beállítod és teszteled a hálózati taskok újrapróbálási szabályzatát.
 
-Set the retry policy in `NETWORK_RETRIES` at the top of the retry section in `tasks.py`: a number
-of retries, an exponential backoff, and jitter. The policy is already applied to the tasks that
-talk to Silo. Leave every other task without retries.
+Állítsd be az újrapróbálási szabályzatot a `tasks.py` újrapróbálási szakaszának elején található
+`NETWORK_RETRIES` változóban: add meg az újrapróbálások számát, az exponenciális visszalépést és a jittert.
+A szabályzat már alkalmazva van a Silóval kommunikáló taskokra. Minden más task maradjon újrapróbálás nélkül.
 
-Answer two questions in one sentence each, in the comment above `NETWORK_RETRIES`:
+Válaszolj egy-egy mondatban a `NETWORK_RETRIES` feletti megjegyzésben a következő két kérdésre:
 
-- (a) Why might `retries=3` on `run_pipeline` be unsuitable?
-- (b) Retrying is safe only if running the same operation twice does no harm. Which of the
-  tasks that retry is **not** safe to repeat? What would a retry do there, and how much does the
-  existing check in that task protect you?
+- (a) Miért lehet alkalmatlan a `run_pipeline` esetében a `retries=3` beállítás?
+- (b) Az újrapróbálás csak akkor biztonságos, ha ugyanannak a műveletnek a kétszeri futtatása nem okoz
+  kárt. Az újrapróbálható taskok közül melyiket **nem** biztonságos megismételni? Mit tenne ott egy
+  újrapróbálás, és mennyire véd meg az adott taskban meglévő ellenőrzés?
 
-**Check:**
+**Ellenőrzés:**
 
-- Remove the skip markers on the three retry-policy tests and the two harness tests. Then run
-  `make flow-retry`. The policy tests check that only the network tasks retry, at least twice,
-  with growing delays and jitter. One harness test fails twice and then succeeds. Another fails every time and still
-  fails after its retries run out. Both check state and call counts, not log text.
-- *(Optional, on the live stack.)* Run `docker compose stop s3`, then `make flow-register`,
-  which pushes to Silo. Observe the delays between retries, then run `docker compose start s3`.
+- Távolítsd el a kihagyási jelölőket a három újrapróbálási szabályzatot ellenőrző tesztről és a két
+  harness-tesztről. Ezután futtasd a `make flow-retry` parancsot. A szabályzatteszt ellenőrzi, hogy csak
+  a hálózati taskok próbálkoznak újra, legalább kétszer, növekvő késleltetéssel és jitterrel. Az egyik
+  harness-teszt kétszer meghiúsul, majd sikerül. A másik minden alkalommal meghiúsul, és az újrapróbálások
+  elfogyása után is sikertelen marad. Mindkettő az állapotot és a hívások számát, nem pedig a napló szövegét ellenőrzi.
+- *(Opcionális, az éles stacken.)* Futtasd a `docker compose stop s3` parancsot, majd a Silo-ba feltöltő
+  `make flow-register` parancsot. Figyeld meg az újrapróbálások közötti késleltetéseket, majd futtasd a
+  `docker compose start s3` parancsot.
 
-### Exercise 4 — Parameters in a commit (`make flow-committed`)
+### 4. gyakorlat — Paraméterek commitban (`make flow-committed`)
 
-Hyperparameters affect the model produced by a training run. Recording the values helps a team
-trace and compare its models. The hyperparameters are in `params.yaml`. You can edit the file
-and run the pipeline while experimenting; for a scheduled run, commit the parameters so Git
-records the configuration. In this exercise, each run records the values used for training,
-and a run that requires committed parameters fails if `params.yaml` has uncommitted changes.
+A hiperparaméterek hatással vannak a tanítási futtatás által előállított modellre. Az értékek rögzítése
+segít a csapatnak a modellek nyomon követésében és összehasonlításában. A hiperparaméterek a `params.yaml`
+fájlban találhatók. Kísérletezés közben szerkesztheted a fájlt és futtathatod a pipeline-t; ütemezett
+futtatás esetén commitold a paramétereket, hogy a Git rögzítse a konfigurációt. Ebben a gyakorlatban
+minden futtatás rögzíti a tanításhoz használt értékeket, és a commitolt paramétereket megkövetelő futtatás
+meghiúsul, ha a `params.yaml` nem commitolt módosításokat tartalmaz.
 
-1. Implement `read_params_used` in `tasks.py`. `dvc.lock` records the parameter values each stage
-   used. Return the values of the `train` stage as one dictionary.
-2. Follow the Exercise 4 TODO in `training_flow`. Before any work, check `params_committed`. When
-   `require_committed_params` is set and `params.yaml` has uncommitted changes, raise an error
-   that says how to fix it. After the pipeline, pass the values and the commit state to `notify`.
-3. Experiment: in `params.yaml`, change `impute_strategy` from `median` to `mean`, without a
-   commit. Run `make flow`. `train`, `evaluate` and `gate` re-run, and `reports/last_run.txt`
-   ends with `train.impute_strategy=mean` and `params.yaml uncommitted`.
-4. Run `make flow-committed`. It starts the flow the way the scheduled run in Exercise 5 will.
-   The flow fails before `run_pipeline` starts, and `reports/last_run.txt` says why.
-5. Undo the experiment with `git restore params.yaml`, and run `make flow` again. The record says
-   `train.impute_strategy=median` and `params.yaml committed`.
+1. Valósítsd meg a `read_params_used` függvényt a `tasks.py` fájlban. A `dvc.lock` rögzíti az egyes
+   szakaszok által használt paraméterértékeket. A `train` szakasz értékeit egyetlen szótárként add vissza.
+2. Kövesd a `training_flow` 4. gyakorlathoz tartozó TODO-ját. Minden munka előtt ellenőrizd a
+   `params_committed` értékét. Ha a `require_committed_params` be van állítva, és a `params.yaml` nem
+   commitolt módosításokat tartalmaz, dobj hibát, amely elmagyarázza a javítás módját. A pipeline után
+   add át az értékeket és a commit állapotát a `notify` függvénynek.
+3. Kísérletezz: a `params.yaml` fájlban módosítsd az `impute_strategy` értékét `median` értékről `mean` értékre, commit nélkül. Futtasd a `make flow` parancsot. A `train`, az `evaluate` és a `gate` újra lefut, a `reports/last_run.txt` pedig a `train.impute_strategy=mean` és a `params.yaml uncommitted` értékkel zárul.
+4. Futtasd a `make flow-committed` parancsot. Ez úgy indítja el a flow-t, ahogyan az 5. gyakorlat ütemezett
+   futtatása fogja. A flow a `run_pipeline` elindulása előtt meghiúsul, és a `reports/last_run.txt` megadja az okot.
+5. Vond vissza a kísérletet a `git restore params.yaml` paranccsal, majd futtasd újra a `make flow` parancsot.
+   A rekord szerint `train.impute_strategy=median` és `params.yaml committed`.
 
-In a team, you can propose a parameter change for review in a pull request.
+Csapatban egy paraméter módosítását pull requestben javasolhatod felülvizsgálatra.
 
-**Check:** remove the skip markers in the "Parameters in a commit" section of
-`tests/test_flows.py` and on `test_notify_records_the_params_and_whether_they_were_committed`, and
-the tests pass. Step 4 fails with the message from your error, and the metrics after step 5 are
-the same as Week 7's.
+**Ellenőrzés:** távolítsd el a kihagyási jelölőket a `tests/test_flows.py` „Paraméterek commitban” szakaszából
+és a `test_notify_records_the_params_and_whether_they_were_committed` tesztről, majd a teszteknek sikeresnek
+kell lenniük. A 4. lépésnek a saját hibaüzeneteddel kell meghiúsulnia, az 5. lépés utáni metrikáknak pedig
+egyezniük kell a 7. héten kapottakkal.
 
-### Exercise 5 — Schedule the flow (`make serve`) — **written**
+### 5. gyakorlat — A flow ütemezése (`make serve`) — **írásbeli**
 
-A schedule specifies when training should start, without a person running the command each time.
-The job still needs access to its data, a known configuration and a way to report its result.
-A team also needs to decide what happens before a trained model is released. In this exercise,
-you serve a scheduled flow and inspect a run.
+Az ütemezés meghatározza, mikor kezdődjön a tanítás anélkül, hogy valakinek minden alkalommal el kellene
+indítania a parancsot. A feladatnak továbbra is hozzá kell férnie az adataihoz, ismert konfigurációra és
+az eredménye jelentésének módjára van szüksége. A csapatnak azt is el kell döntenie, mi történjen a betanított
+modell kiadása előtt. Ebben a gyakorlatban kiszolgálsz egy ütemezett flow-t, és megvizsgálod annak futtatását.
 
-Implement `scheduled_flow` in `flows.py`. It pulls the current data, then runs the training flow
-with `require_committed_params=True`. It does not register or promote the model. Remove the skip marker in
-"The scheduled flow" section of `tests/test_flows.py`, and the test checks all three.
+Valósítsd meg a `scheduled_flow` függvényt a `flows.py` fájlban. Lekéri az aktuális adatokat, majd
+`require_committed_params=True` beállítással futtatja a tanítási flow-t. Nem regisztrálja és nem lépteti
+elő a modellt. Távolítsd el a kihagyási jelölőt a `tests/test_flows.py` „Az ütemezett flow” szakaszából;
+a teszt mindhárom feltételt ellenőrzi.
 
-Run `make serve` to serve the flow on a cron schedule. The default is every 5 minutes; set
-`CRON='* * * * *'` to run it every minute. Leave it running until at least one scheduled run
-starts. Check the run in the UI, then stop the process with Ctrl-C. Record the flow-run name and
-its final state.
+Futtasd a `make serve` parancsot a flow cron szerinti kiszolgálásához. Az alapértelmezés 5 percenkénti
+futtatás; a percenkénti futtatáshoz állítsd be a `CRON='* * * * *'` értéket. Hagyd futni legalább addig,
+amíg egy ütemezett futtatás el nem indul. Ellenőrizd a futtatást a felületen, majd állítsd le a folyamatot
+Ctrl-C billentyűkombinációval. Jegyezd fel a flow-futtatás nevét és végső állapotát.
 
-1. Is passing the quality gate enough to release a model trained by a scheduled job? What other
-   checks or approvals would you require before it reaches users?
-2. What should be notified, and to whom?
-3. What should happen on the **second** failure in a row that should not happen on the first?
-4. Which scheduled-job failure would these checks and notifications still miss?
+1. Elegendő a minőségkapu teljesítése egy ütemezett feladat által tanított modell kiadásához? Milyen
+   további ellenőrzéseket vagy jóváhagyásokat követelnél meg, mielőtt a modell eljut a felhasználókhoz?
+2. Miről kell értesítést küldeni, és kinek?
+3. Mi történjen a **második** egymást követő hiba esetén, aminek az elsőnél még nem kell megtörténnie?
+4. Melyik ütemezett feladathoz kapcsolódó hibát nem észlelnék ezek az ellenőrzések és értesítések?
 
-### Finish — commit your work
+### Befejezés — commitold a munkádat
 
 ```bash
-git status          # include answers.md; exclude .env and .venv/
+git status          # az answers.md legyen benne; a .env és a .venv/ ne
 git add labs/week-08-prefect-flow/starter
 git commit -m "week08: prefect flow, retries and written answers"
 ```
 
-Commit your code and `answers.md`. At the top of `answers.md`, put the name and final state of
-the scheduled run from Exercise 5. If `git status` shows `params.yaml` as modified, an experiment
-from Exercise 4 is still in it. Undo it with `git restore params.yaml` before you commit.
+Commitold a kódodat és az `answers.md` fájlt. Az `answers.md` tetejére írd az 5. gyakorlat ütemezett
+futtatásának nevét és végső állapotát. Ha a `git status` módosítottként jelzi a `params.yaml` fájlt,
+akkor a 4. gyakorlat egyik kísérlete még benne van. Commitolás előtt vond vissza a
+`git restore params.yaml` paranccsal.
 
-## Make targets
+## Make-célok
 
-| Target | What it does |
+| Cél | Mit csinál |
 | --- | --- |
-| `make flow` | the training flow, recorded in the Prefect UI (Exercise 1) |
-| `make flow-dvc` | the two graphs side by side (Exercise 2) |
-| `make flow-retry` | runs the retry tests (Exercise 3) |
-| `make flow-committed` | the training flow, refusing an uncommitted `params.yaml` (Exercise 4) |
-| `make serve` | a scheduled deployment. `CRON=...` to override (Exercise 5) |
-| `make flow-register` | the flow with `dvc push` and registration, against the live stack |
-| `make prefect-ui` | print the UI address |
-| `make test-flows` | run this week's flow tests |
+| `make flow` | a tanítási flow rögzítése a Prefect felületén (1. gyakorlat) |
+| `make flow-dvc` | a két gráf egymás melletti megjelenítése (2. gyakorlat) |
+| `make flow-retry` | az újrapróbálási tesztek futtatása (3. gyakorlat) |
+| `make flow-committed` | a tanítási flow; elutasítja a nem commitolt `params.yaml` fájlt (4. gyakorlat) |
+| `make serve` | ütemezett telepítés; felülírás: `CRON=...` (5. gyakorlat) |
+| `make flow-register` | a flow `dvc push` paranccsal és regisztrációval, az éles stack ellen |
+| `make prefect-ui` | a felület címének kiírása |
+| `make test-flows` | az e heti flow-tesztek futtatása |
 
-Every Week 4–7 target still works, including `make ci`, `make repro`, `make gate` and both
-GitHub Actions workflows.
+A 4–7. hét minden célja továbbra is működik, beleértve a `make ci`, `make repro`, `make gate` célokat
+és mindkét GitHub Actions-munkafolyamatot.
 
-## Troubleshooting
+## Hibaelhárítás
 
-| Symptom | Cause | Fix |
+| Tünet | Ok | Javítás |
 | --- | --- | --- |
-| `No Prefect server at ...` | stack down | `make up` |
-| Every API call returns 404 | `PREFECT_API_URL` is missing the `/api` suffix | copy it from `.env.example` |
-| Prefect container restarts in a loop | `prefectdb` is missing. The init script only runs when the Postgres volume is **first** created | `make down-v && make up` (this also wipes MLflow's data) |
-| `PREFECT_API_DATABASE_CONNECTION_URL` has no effect | the setting was renamed | use `PREFECT_SERVER_DATABASE_CONNECTION_URL` |
-| `Scheduled_FlowModel is not fully defined` | a flow parameter Prefect cannot serialise | keep flow signatures to strings, numbers and booleans, as the `training_flow` docstring explains |
-| `dvc pull failed` with no detail | Silo credentials were not passed to the subprocess | see `_dvc_env` in `tasks.py` |
-| A scheduled run fails with `params.yaml has uncommitted changes` | an experiment is still in `params.yaml` | commit the change, or undo it with `git restore params.yaml` |
-| `data/measurements.csv is missing` | a fresh clone. The dataset is DVC-tracked, not committed | `make data-v2` |
-| A flow test takes about 8 seconds instead of 1 | it runs a flow without the harness, so Prefect starts a temporary server | use the `prefect_harness` fixture, or `task.fn(...)` |
-| Port already in use | another week's stack is running | `make down` in that lab first |
+| `No Prefect server at ...` | a stack leállt | `make up` |
+| Minden API-hívás 404-et ad | a `PREFECT_API_URL` végéről hiányzik az `/api` | másold át a `.env.example` fájlból |
+| A Prefect-konténer ciklikusan újraindul | hiányzik a `prefectdb`; az inicializáló szkript csak a Postgres-kötet **első** létrehozásakor fut le | `make down-v && make up` (ez az MLflow adatait is törli) |
+| A `PREFECT_API_DATABASE_CONNECTION_URL` hatástalan | a beállítás neve megváltozott | használd a `PREFECT_SERVER_DATABASE_CONNECTION_URL` változót |
+| `Scheduled_FlowModel is not fully defined` | egy flow-paramétert a Prefect nem tud szerializálni | a `training_flow` docstringjében leírtak szerint a flow-aláírásokban csak szövegeket, számokat és logikai értékeket használj |
+| A `dvc pull` részletek nélkül meghiúsul | a Siló hitelesítő adatait nem adták át az alfolyamatnak | lásd a `tasks.py` `_dvc_env` részét |
+| Egy ütemezett futtatás `params.yaml has uncommitted changes` hibával meghiúsul | egy kísérlet még a `params.yaml` fájlban van | commitold a módosítást, vagy vond vissza a `git restore params.yaml` paranccsal |
+| Hiányzik a `data/measurements.csv` | friss klón; az adatkészletet a DVC követi nyomon, nem a Git | `make data-v2` |
+| Egy flow-teszt körülbelül 8 másodpercig tart 1 helyett | harness nélkül futtat flow-t, ezért a Prefect ideiglenes szervert indít | használd a `prefect_harness` fixture-t vagy a `task.fn(...)` hívást |
+| A port már használatban van | egy másik hét stackje fut | előbb futtasd a `make down` parancsot az adott laborban |
 
-## Submission
+## Beadás
 
-Submit the commit from Finish. It contains your code and `answers.md`, with the scheduled run's
-name and state at the top. Do not include `.env` or `.venv/`.
+Add be a Befejezés során létrehozott commitot. A kódodat és az `answers.md` fájlt tartalmazza,
+az ütemezett futtatás nevével és állapotával a fájl tetején. A `.env` és a `.venv/` ne legyen benne.
 
-## Deviations from the tutorials
+## Eltérések az oktatóanyagoktól
 
-1. **The flow calls `dvc repro`.** The quickstart builds a flow out of
-   plain Python tasks. The existing DVC pipeline tracks inputs and skips stages that are up to
-   date, so the flow calls it rather than replacing its stages.
-2. The lab uses a self-hosted server with the existing Postgres container. The script
-   `init-prefect-db.sh` creates a second database when the Postgres volume is first created.
-3. The lab uses `.serve()` for scheduled runs. It runs in one process and does not need a work
-   pool, worker or infrastructure block.
-4. The retries exercise asks you to choose which tasks should retry, as well as configuring the
-   retry policy.
-5. Tests use `prefect_test_harness` for flow runs and `task.fn(...)` where they can test the
-   underlying function without starting a flow.
+1. **A flow meghívja a `dvc repro` parancsot.** A gyors kezdés egyszerű Python-taskokból állít össze
+   flow-t. A meglévő DVC-pipeline követi a bemeneteket, és kihagyja a naprakész szakaszokat, ezért a flow
+   ezt hívja meg ahelyett, hogy lecserélné a szakaszait.
+2. A labor saját üzemeltetésű szervert használ a meglévő Postgres-konténerrel. Az
+   `init-prefect-db.sh` szkript egy második adatbázist hoz létre a Postgres-kötet első létrehozásakor.
+3. A labor a `.serve()` metódust használja az ütemezett futtatásokhoz. Ez egy folyamatban fut, és nincs
+   szüksége munkakészletre, workerre vagy infrastruktúrablokkra.
+4. Az újrapróbálási gyakorlatban neked kell kiválasztanod, mely taskokat kell újrapróbálni, és be is
+   kell állítanod az újrapróbálási szabályzatot.
+5. A tesztek a flow-futtatásokhoz a `prefect_test_harness` eszközt használják, az alapul szolgáló
+   függvényt pedig `task.fn(...)` segítségével tesztelik, amikor ez flow indítása nélkül is lehetséges.
 
-The settings in `.env.example` include the `/api` suffix in `PREFECT_API_URL` and use
-`PREFECT_SERVER_DATABASE_CONNECTION_URL` for the server database connection.
+A `.env.example` beállításai tartalmazzák az `/api` utótagot a `PREFECT_API_URL` értékében, és a
+`PREFECT_SERVER_DATABASE_CONNECTION_URL` változót használják a szerver adatbáziskapcsolatához.
