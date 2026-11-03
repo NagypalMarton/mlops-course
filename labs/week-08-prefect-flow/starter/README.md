@@ -238,6 +238,8 @@ A 4–7. hét minden célja továbbra is működik, beleértve a `make ci`, `mak
 
 Add be a Befejezés során létrehozott commitot. A kódodat és az `answers.md` fájlt tartalmazza,
 az ütemezett futtatás nevével és állapotával a fájl tetején. A `.env` és a `.venv/` ne legyen benne.
+Pushold fel a commitot, nyisd meg GitHubon
+(`https://github.com/<you>/<repo>/commit/<hash>`), és töltsd fel ezt az URL-t a Moodle-be.
 
 ## Eltérések az oktatóanyagoktól
 
