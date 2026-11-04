@@ -41,19 +41,41 @@ def online_score(client: Any, frame: pd.DataFrame, url: str = "/predict") -> dic
     `client` is anything with `.post(url, json=...)`: httpx, requests, or
     FastAPI's TestClient, which runs the app without a server.
     """
-    # TODO(student) Exercise 3: send and time one request per patient.
-    #   - Use `to_payloads` to get a request body for each row in `frame`.
-    #   - Post each body to `url` with `client.post`. Use `time.perf_counter()`
-    #     to measure each request in milliseconds, and keep the times in a list.
-    #   - Count responses whose `status_code` is not 200; these requests failed.
-    #   - Measure the wall clock time of the whole loop.
-    #   - Use `statistics.quantiles` to calculate p50 and p95 from the times.
-    # Return a dict with mode ("online"), rows, wall_clock_s, rows_per_second,
-    # p50_ms, p95_ms, max_ms and failed.
-    # Reference: https://docs.python.org/3/library/statistics.html#statistics.quantiles
-    return {"mode": "online", "rows": 0, "wall_clock_s": 0.0,
-            "rows_per_second": 0.0, "p50_ms": 0.0, "p95_ms": 0.0, "max_ms": 0.0,
-            "failed": 0}
+    payloads = to_payloads(frame)
+    timings_ms: list[float] = []
+    failed = 0
+    start = time.perf_counter()
+
+    for payload in payloads:
+        request_start = time.perf_counter()
+        response = client.post(url, json=payload)
+        timings_ms.append((time.perf_counter() - request_start) * 1000)
+        if response.status_code != 200:
+            failed += 1
+
+    wall_clock_s = time.perf_counter() - start
+    rows = len(payloads)
+    if timings_ms:
+        if len(timings_ms) == 1:
+            p50_ms = p95_ms = timings_ms[0]
+        else:
+            percentiles = statistics.quantiles(timings_ms, n=100, method="inclusive")
+            p50_ms = percentiles[49]
+            p95_ms = percentiles[94]
+        max_ms = max(timings_ms)
+    else:
+        p50_ms = p95_ms = max_ms = 0.0
+
+    return {
+        "mode": "online",
+        "rows": rows,
+        "wall_clock_s": round(wall_clock_s, 4),
+        "rows_per_second": round(rows / wall_clock_s, 1) if wall_clock_s else 0.0,
+        "p50_ms": round(p50_ms, 2),
+        "p95_ms": round(p95_ms, 2),
+        "max_ms": round(max_ms, 2),
+        "failed": failed,
+    }
 
 
 def format_comparison(batch: dict, online: dict) -> str:

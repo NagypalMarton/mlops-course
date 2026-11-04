@@ -8,12 +8,9 @@
 # The commands of the training pipeline, the CI checks and the serving lab.
 # The README's "Make targets" table lists the ones this lab uses.
 
-# .env is sourced by the shell, so quoting and comments work as in a terminal.
-# DVC reads the AWS_* names, so the Silo credentials from .env are mapped onto them.
-DOTENV = set -a && . ./.env && set +a
-DVC    = $(DOTENV) && AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY" \
-                      AWS_SECRET_ACCESS_KEY="$$S3_SECRET_KEY" \
-                      DVC_PAGER=cat uv run dvc
+# DVC reads the AWS_* names, so scripts/dvc.py maps the Silo credentials from
+# .env onto them. Keeping this in Python makes the targets work on Windows too.
+DVC = uv run python scripts/dvc.py
 
 # ── The Compose stack ────────────────────────────────────────────────────────
 
@@ -132,17 +129,11 @@ lint:
 
 ## Stop with a hint when the DVC-tracked dataset is missing, as on a fresh clone.
 ensure-data:
-	@test -f data/measurements.csv || { \
-	  echo "data/measurements.csv is missing -- it is DVC-tracked, so a fresh"; \
-	  echo "clone does not have it. Rebuild it from the committed raw batches:"; \
-	  echo "    make data-v2"; \
-	  echo "(CI does exactly this, which is why it needs no object store.)"; \
-	  exit 1; }
+	uv run python scripts/ensure.py data
 
 ## Copy .env.example to .env when there is no .env, as on a CI runner.
 ensure-env:
-	@test -f .env || { cp .env.example .env; \
-	  echo "no .env found -> copied .env.example (defaults; no secrets in this lab)"; }
+	uv run python scripts/ensure.py env
 
 ## What ci.yml runs: lint, the tests, the pipeline and the gate.
 ci: ensure-env ensure-data lint test-fast repro gate
@@ -182,8 +173,7 @@ flow: ensure-env ensure-data
 ## Exercise 1: MLflow's server for the champion, on port 5540.
 ## `--env-manager local` uses this Python instead of rebuilding the model's environment.
 serve-mlflow: ensure-env
-	$(DOTENV) && uv run mlflow models serve \
-	  -m "models:/$${MLFLOW_REGISTERED_MODEL_NAME}@$${MLFLOW_CHAMPION_ALIAS:-champion}" \
+	uv run python scripts/mlflow_serve.py \
 	  --env-manager local -p 5540 --host 127.0.0.1
 
 ## Exercise 2: your service, on port 5541. It reads models/model.pkl, so it needs no stack.
@@ -197,16 +187,7 @@ bench: ensure-data
 ## Exercise 4: build the image with the model in it. Refuses unless the gate verdict is GO.
 ## With the stack up, the image records the champion's version; without it, "unknown".
 image: ensure-env
-	@set -e; \
-	  eval "$$(uv run python src/main.py bake-info)"; \
-	  echo "baking: version=$$MODEL_VERSION run=$$RUN_ID gate=$$GATE_VERDICT source=$$MODEL_SOURCE"; \
-	  test "$$GATE_VERDICT" = "GO" || { echo; \
-	    echo "REFUSING to build: the recorded gate verdict is '$$GATE_VERDICT'."; \
-	    echo "Only a model with a GO verdict may be released, and an image is a release."; \
-	    exit 1; }; \
-	  docker build --progress=plain -f serve.Dockerfile -t diabetes-api:local \
-	    --build-arg MODEL_VERSION="$$MODEL_VERSION" --build-arg RUN_ID="$$RUN_ID" \
-	    --build-arg GATE_VERDICT="$$GATE_VERDICT" --build-arg MODEL_SOURCE="$$MODEL_SOURCE" .
+	uv run python scripts/build_image.py
 
 ## Exercise 4: run the image on its own, on port 5542.
 run-image:

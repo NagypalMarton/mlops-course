@@ -34,7 +34,7 @@ prepare:
 
 train:
   family: logreg
-  C: 1.0
+  C: 1.0 #0.01 #1.0
   max_iter: 1000
   # New in Week 5. How the model fills the nulls that the sentinel conversion
   # created: median, mean or most_frequent.

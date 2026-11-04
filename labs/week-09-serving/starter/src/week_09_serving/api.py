@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .config import load_settings
 from .inference import payload_to_frame, validate_payload  # noqa: F401 -- Exercise 2
 from .schemas import FEATURE_COLUMNS, SCHEMA_VERSION  # noqa: F401
+from .validation import to_nullable
 
 
 class PredictionRequest(BaseModel):
@@ -114,6 +115,43 @@ def create_app() -> FastAPI:
     #     from `baked` and SCHEMA_VERSION as schema_version.
     # Reference: https://fastapi.tiangolo.com/tutorial/body/ and
     # https://fastapi.tiangolo.com/tutorial/handling-errors/
+
+    @app.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        if app.state.model is None:
+            raise HTTPException(status_code=503, detail="model not ready")
+
+        return HealthResponse(
+            status="ok",
+            model_version=baked["model_version"],
+            run_id=baked["run_id"],
+            gate_verdict=baked["gate_verdict"],
+            schema_version=SCHEMA_VERSION,
+            model_source=baked["source"],
+        )
+
+    @app.post("/predict", response_model=PredictionResponse)
+    def predict(request: PredictionRequest) -> PredictionResponse:
+        payload = request.model_dump()
+        report = validate_payload(payload)
+        if not report["passed"]:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "failures": report["by_check"],
+                    "schema_version": SCHEMA_VERSION,
+                },
+            )
+
+        frame = to_nullable(payload_to_frame(payload))[list(FEATURE_COLUMNS)]
+        numeric = frame.astype("float64")
+        probability = float(app.state.model.predict_proba(numeric)[0][1])
+        return PredictionResponse(
+            prediction=int(probability >= 0.5),
+            probability=round(probability, 4),
+            model_version=baked["model_version"],
+            schema_version=SCHEMA_VERSION,
+        )
 
     return app
 

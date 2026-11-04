@@ -1,8 +1,8 @@
 {
-  "source": "week-05 reference run",
+  "source": "mlflow://diabetes-classifier@champion",
   "model_name": "diabetes-classifier",
-  "model_version": null,
-  "run_id": null,
+  "model_version": "2",
+  "run_id": "49ef33eb6e6141e4ad58a2e88d9960fe",
   "metrics": {
     "accuracy": 0.7656,
     "f1": 0.6341,

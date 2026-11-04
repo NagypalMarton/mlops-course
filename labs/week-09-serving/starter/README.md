@@ -51,6 +51,7 @@ copies of the service running.
 ```bash
 # Stop any other lab stack; the labs share the 55xx host ports
 cd ../../week-08-prefect-flow/starter && make down; cd -
+cd ../../week-09-serving/starter
 
 cp .env.example .env
 make sync               # install all dependency groups
@@ -60,6 +61,12 @@ make repro              # train, log the run to MLflow and check the gate
 make register           # register the model as a new version
 make promote-champion   # give that version the champion alias, which Exercise 1 serves
 ```
+
+On Windows, run these commands from PowerShell in the lab directory. The Makefile
+loads `.env` through Python, so the DVC targets do not require POSIX shell syntax.
+The `register` and `promote-champion` commands require `make up` to still be
+running; `make repro` must complete with a GO gate before either command can
+release the model.
 
 Run `uv run pytest -q` before starting the exercises. With the stack still up after Setup, the
 expected result is:
@@ -275,6 +282,8 @@ exercises are gone; the commands behind them are still in `src/main.py`.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `make serve-mlflow` fails, and the error names the alias `champion` | no version has the champion alias yet | `make register` and `make promote-champion` (Setup) |
+| `make up` reports Prefect as unhealthy and its log says `database "prefectdb" does not exist` | the Postgres volume was initialized before Prefect was added, so the init script did not run again | create it once with `docker compose exec -T postgres psql -U mlflow -d mlflowdb -c "CREATE DATABASE prefectdb;"`, then run `make up` again |
+| MLflow repeatedly restarts and its log names `psycopg` or `psycopg2` | the MLflow image's database driver or SQLAlchemy version is incompatible with the lockfile | rebuild it with `docker compose build mlflow`, then run `make up` again |
 | `make serve-mlflow` fails with `No such artifact: 'MLmodel'` | the registered version's files are gone, for example after `make down-v` | with the stack up, `make repro`, `make register`, `make promote-champion` |
 | `/health` answers 503 | no `models/model.pkl` | `make repro` |
 | `make image` refuses to build | the recorded gate verdict is not GO | `make repro`, and check `reports/gate.json` |
