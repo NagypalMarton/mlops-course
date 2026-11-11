@@ -187,7 +187,16 @@ bench: ensure-data
 ## Exercise 4: build the image with the model in it. Refuses unless the gate verdict is GO.
 ## With the stack up, the image records the champion's version; without it, "unknown".
 image: ensure-env
-	uv run python scripts/build_image.py
+	@set -e; \
+	  eval "$$(uv run python src/main.py build-info)"; \
+	  echo "building: version=$$MODEL_VERSION run=$$RUN_ID gate=$$GATE_VERDICT source=$$MODEL_SOURCE"; \
+	  test "$$GATE_VERDICT" = "GO" || { echo; \
+	    echo "REFUSING to build: the recorded gate verdict is '$$GATE_VERDICT'."; \
+	    echo "Only a model with a GO verdict may be released, and an image is a release."; \
+	    exit 1; }; \
+	  docker build --progress=plain -f serve.Dockerfile -t diabetes-api:local \
+	    --build-arg MODEL_VERSION="$$MODEL_VERSION" --build-arg RUN_ID="$$RUN_ID" \
+	    --build-arg GATE_VERDICT="$$GATE_VERDICT" --build-arg MODEL_SOURCE="$$MODEL_SOURCE" .
 
 ## Exercise 4: run the image on its own, on port 5542.
 run-image:

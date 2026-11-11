@@ -88,23 +88,69 @@ class _Version:
 
 
 def test_the_image_names_the_champion_only_when_it_holds_the_champion():
-    from week_09_serving.cli import bake_values
+    from week_09_serving.cli import build_info_values
 
-    same = bake_values("GO", "run-a", _Version(2, "run-a"))
+    same = build_info_values("GO", "run-a", _Version(2, "run-a"))
     assert same["MODEL_VERSION"] == "2" and same["MODEL_SOURCE"] == "registry champion"
 
-    other = bake_values("GO", "run-b", _Version(2, "run-a"))
+    other = build_info_values("GO", "run-b", _Version(2, "run-a"))
     assert other["MODEL_VERSION"] == "unknown", (
         "the local model was trained by another run, so the image must not claim version 2"
     )
 
-    offline = bake_values(None, None, None)
+    offline = build_info_values(None, None, None)
     assert offline == {"MODEL_VERSION": "unknown", "RUN_ID": "unknown",
                        "GATE_VERDICT": "unknown", "MODEL_SOURCE": "local models/model.pkl"}
 
 
-# ── Your service (Exercise 2) ───────────────────────────────────────────────
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+# ── /health (Exercise 2, step 2) ────────────────────────────────────────────
+
+
+@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+def test_health_reports_the_build_info(client):
+    response = client.get("/health")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["schema_version"]
+    assert body["model_source"] == "working tree (not a built image)"
+
+
+@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+def test_health_is_503_without_a_model(monkeypatch, tmp_path):
+    """No model, no traffic: the readiness probe in Exercise 5 relies on this 503."""
+    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "missing.pkl"))
+    response = TestClient(create_app()).get("/health")
+    assert response.status_code == 503, response.text
+    assert "not ready" in str(response.json()["detail"])
+
+
+@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+def test_the_openapi_schema_lists_both_endpoints(client):
+    spec = client.get("/openapi.json").json()
+    assert "/predict" in spec["paths"]
+    assert "/health" in spec["paths"]
+
+
+def test_health_does_not_need_the_registry():
+    """`/health` reads what was written into the image, not the tracking server."""
+    import inspect
+
+    from week_09_serving import api
+
+    source = inspect.getsource(api)
+    build_info = source[source.index("def _build_info("):source.index("def create_app(")]
+    for forbidden in ("MlflowClient", "mlflow.tracking", "get_model_version"):
+        assert forbidden not in build_info, (
+            f"`_build_info()` uses {forbidden}: /health must report what was "
+            "written at build time, not what the registry says now"
+        )
+
+
+# ── /predict (Exercise 2, step 3) ───────────────────────────────────────────
+
+
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_a_valid_payload_scores(client):
     response = client.post("/predict", json=VALID)
     assert response.status_code == 200, response.text
@@ -114,7 +160,7 @@ def test_a_valid_payload_scores(client):
     assert body["schema_version"]
 
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_the_response_is_deterministic(client):
     first = client.post("/predict", json=VALID)
     second = client.post("/predict", json=VALID)
@@ -122,7 +168,7 @@ def test_the_response_is_deterministic(client):
     assert first.json() == second.json()
 
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_a_sentinel_zero_is_rejected_by_name(client):
     """pydantic accepts `glucose: 0`; the contract rejects it and says which check failed."""
     response = client.post("/predict", json={**VALID, "glucose": 0})
@@ -133,7 +179,7 @@ def test_a_sentinel_zero_is_rejected_by_name(client):
     )
 
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_a_missing_measurement_is_scored(client):
     """A value that was not measured is sent as null; the model's imputer fills it in."""
     response = client.post("/predict", json={**VALID, "insulin": None})
@@ -141,64 +187,28 @@ def test_a_missing_measurement_is_scored(client):
     assert 0.0 <= response.json()["probability"] <= 1.0
 
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_an_extra_field_is_rejected(client):
     response = client.post("/predict", json={**VALID, "cholesterol": 180})
     assert response.status_code == 422
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_a_missing_field_is_rejected(client):
     payload = {k: v for k, v in VALID.items() if k != "bmi"}
     assert client.post("/predict", json=payload).status_code == 422
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_field_order_does_not_matter(client):
     """A JSON object has no column order, so the contract does not ask for one."""
     reversed_payload = dict(reversed(list(VALID.items())))
     assert client.post("/predict", json=reversed_payload).status_code == 200
 
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
+
+@pytest.mark.skip(reason="Exercise 2, step 3 — write the /predict endpoint in api.py, then delete this skip marker.")
 def test_a_non_numeric_value_is_rejected(client):
     assert client.post("/predict", json={**VALID, "age": "fifty"}).status_code == 422
-
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
-def test_health_reports_the_baked_model(client):
-    response = client.get("/health")
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["status"] == "ok"
-    assert body["schema_version"]
-    assert body["model_source"] == "working tree (not baked)"
-
-
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
-def test_health_is_503_without_a_model(monkeypatch, tmp_path):
-    """No model, no traffic: the readiness probe in Exercise 5 relies on this 503."""
-    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "missing.pkl"))
-    response = TestClient(create_app()).get("/health")
-    assert response.status_code == 503, response.text
-    assert "not ready" in str(response.json()["detail"])
-
-
-def test_health_does_not_need_the_registry():
-    """`/health` reads what was written into the image, not the tracking server."""
-    import inspect
-
-    from week_09_serving import api
-
-    source = inspect.getsource(api)
-    baked = source[source.index("def _baked("):source.index("def create_app(")]
-    for forbidden in ("MlflowClient", "mlflow.tracking", "get_model_version"):
-        assert forbidden not in baked, (
-            f"`_baked()` uses {forbidden}: /health must report what was "
-            "written at build time, not what the registry says now"
-        )
-
-#@pytest.mark.skip(reason="Exercise 2 — write the endpoints in api.py, then delete this skip marker.")
-def test_the_openapi_schema_lists_both_endpoints(client):
-    spec = client.get("/openapi.json").json()
-    assert "/predict" in spec["paths"]
-    assert "/health" in spec["paths"]
 
 
 # ── Batch versus online (Exercise 3) ────────────────────────────────────────
