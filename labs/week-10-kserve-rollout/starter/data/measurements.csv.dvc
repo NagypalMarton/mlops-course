@@ -3,3 +3,4 @@ outs:
   size: 31750
   hash: md5
   path: measurements.csv
+  isexec: true
