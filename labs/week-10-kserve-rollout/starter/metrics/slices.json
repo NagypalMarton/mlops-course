@@ -1,0 +1,221 @@
+{
+  "n_rows": 192,
+  "n_positives": 67,
+  "slices": {
+    "age_band": {
+      "21-29": {
+        "n": 94,
+        "n_positives": 21,
+        "accuracy": 0.7766,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8761,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "30-39": {
+        "n": 48,
+        "n_positives": 22,
+        "accuracy": 0.5417,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.757,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "40-49": {
+        "n": 31,
+        "n_positives": 17,
+        "accuracy": 0.4516,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8697,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "50+": {
+        "n": 19,
+        "n_positives": 7,
+        "accuracy": 0.6316,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.7262,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      }
+    },
+    "bmi_band": {
+      "under_normal": {
+        "n": 30,
+        "n_positives": 1,
+        "accuracy": 0.9667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8621,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "overweight": {
+        "n": 48,
+        "n_positives": 9,
+        "accuracy": 0.8125,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8433,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "obese": {
+        "n": 112,
+        "n_positives": 57,
+        "accuracy": 0.4911,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.7745,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "missing": {
+        "n": 2,
+        "n_positives": 0,
+        "accuracy": 1.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": null,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      }
+    },
+    "insulin_missing": {
+      "insulin_present": {
+        "n": 104,
+        "n_positives": 42,
+        "accuracy": 0.5962,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.826,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      },
+      "insulin_missing": {
+        "n": 88,
+        "n_positives": 25,
+        "accuracy": 0.7159,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.8635,
+        "selection_rate": 0.0,
+        "fpr": 0.0
+      }
+    }
+  },
+  "fairness": {
+    "age_band": {
+      "groups": {
+        "21-29": {
+          "n": 94,
+          "n_positives": 21,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "30-39": {
+          "n": 48,
+          "n_positives": 22,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "40-49": {
+          "n": 31,
+          "n_positives": 17,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "50+": {
+          "n": 19,
+          "n_positives": 7,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        }
+      },
+      "selection_rate_gap": 0.0,
+      "tpr_gap": 0.0,
+      "fpr_gap": 0.0,
+      "equalized_odds_difference": 0.0,
+      "min_group_for_gap": 5
+    },
+    "bmi_band": {
+      "groups": {
+        "missing": {
+          "n": 2,
+          "n_positives": 0,
+          "selection_rate": 0.0,
+          "tpr": null,
+          "fpr": 0.0
+        },
+        "obese": {
+          "n": 112,
+          "n_positives": 57,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "overweight": {
+          "n": 48,
+          "n_positives": 9,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "under_normal": {
+          "n": 30,
+          "n_positives": 1,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        }
+      },
+      "selection_rate_gap": 0.0,
+      "tpr_gap": 0.0,
+      "fpr_gap": 0.0,
+      "equalized_odds_difference": 0.0,
+      "min_group_for_gap": 5
+    },
+    "insulin_missing": {
+      "groups": {
+        "insulin_missing": {
+          "n": 88,
+          "n_positives": 25,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        },
+        "insulin_present": {
+          "n": 104,
+          "n_positives": 42,
+          "selection_rate": 0.0,
+          "tpr": 0.0,
+          "fpr": 0.0
+        }
+      },
+      "selection_rate_gap": 0.0,
+      "tpr_gap": 0.0,
+      "fpr_gap": 0.0,
+      "equalized_odds_difference": 0.0,
+      "min_group_for_gap": 5
+    }
+  }
+}
