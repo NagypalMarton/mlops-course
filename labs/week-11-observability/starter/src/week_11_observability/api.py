@@ -387,6 +387,8 @@ def create_app(registry: CollectorRegistry | None = None) -> FastAPI:
             # 422, naming the field AND the check that failed. A caller who
             # gets "invalid input" learns nothing; a caller who gets
             # "glucose failed greater_than(0)" can fix their request.
+            for check_name, count in report["by_check"].items():
+                app.state.metrics["violations"].labels(check=check_name).inc(count)
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -413,6 +415,9 @@ def create_app(registry: CollectorRegistry | None = None) -> FastAPI:
         # rather than the server: count the prediction by outcome
         # ("positive"/"negative", so the cardinality cost is 2) and observe the
         # probability on the score histogram.
+        outcome = "positive" if probability >= 0.5 else "negative"
+        app.state.metrics["predictions"].labels(outcome=outcome).inc()
+        app.state.metrics["score"].observe(probability)
 
         return PredictionResponse(
             prediction=int(probability >= 0.5),

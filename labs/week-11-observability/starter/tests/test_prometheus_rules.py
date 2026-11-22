@@ -128,7 +128,6 @@ def metric_names_in(expr: str) -> set[str]:
 # ── The configuration ────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Exercise 2 — add the diabetes-api scrape job to prometheus.yml")
 def test_prometheus_config_parses_and_scrapes_our_service():
     config = load(CONFIG)
     jobs = {job["job_name"] for job in config["scrape_configs"]}

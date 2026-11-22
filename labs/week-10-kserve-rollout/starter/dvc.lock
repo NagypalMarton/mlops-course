@@ -103,7 +103,7 @@ stages:
     params:
       params.yaml:
         random_seed: 42
-        train.C: 0.001
+        train.C: 1.0
         train.family: logreg
         train.impute_strategy: median
         train.max_iter: 1000
@@ -111,12 +111,12 @@ stages:
     outs:
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: d8d778c02be5e47c081a930102210531
-      size: 46
+      md5: a5c039e72910cdf4bf66bacc59e89863
+      size: 82
       isexec: true
     - path: models/model.pkl
       hash: md5
-      md5: d2f259c192f6cb3183cc140658b7854f
+      md5: e1777109016ab4292f95927ed9827194
       size: 2273
       isexec: true
   evaluate:
@@ -129,12 +129,12 @@ stages:
       isexec: true
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: d8d778c02be5e47c081a930102210531
-      size: 46
+      md5: a5c039e72910cdf4bf66bacc59e89863
+      size: 82
       isexec: true
     - path: models/model.pkl
       hash: md5
-      md5: d2f259c192f6cb3183cc140658b7854f
+      md5: e1777109016ab4292f95927ed9827194
       size: 2273
       isexec: true
     - path: src/week_10_kserve_rollout/evaluation.py
@@ -208,13 +208,13 @@ stages:
     outs:
     - path: metrics/metrics.json
       hash: md5
-      md5: 1138f1e65cc8bff0bd901c148d7fc226
-      size: 95
+      md5: 6a5f49039d799a608192bdbccb853a27
+      size: 105
       isexec: true
     - path: metrics/slices.json
       hash: md5
-      md5: 4bbe8d656d1cf6201c503e34197f7442
-      size: 4778
+      md5: 638d4ebe56c881bedc2491b27dbf9aa2
+      size: 4975
       isexec: true
   gate:
     cmd: uv run python src/main.py gate
@@ -236,8 +236,8 @@ stages:
       isexec: true
     - path: models/mlflow_run_id.json
       hash: md5
-      md5: d8d778c02be5e47c081a930102210531
-      size: 46
+      md5: a5c039e72910cdf4bf66bacc59e89863
+      size: 82
       isexec: true
     - path: src/week_10_kserve_rollout/baseline.py
       hash: md5

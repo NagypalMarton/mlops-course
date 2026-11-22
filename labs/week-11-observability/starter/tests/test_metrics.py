@@ -74,7 +74,6 @@ def samples(registry: CollectorRegistry, name: str) -> dict[tuple, float]:
 # ── The cardinality decision ─────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Exercise 1 — return the route template in route_label")
 def test_the_route_label_is_the_template_not_the_path(client, registry):
     """Three URLs, one time series. This is the whole point of `route_label`.
 
@@ -102,7 +101,6 @@ def test_the_route_label_is_the_template_not_the_path(client, registry):
     assert samples(registry, "http_requests_total")[next(iter(v1_series))] == 3
 
 
-@pytest.mark.skip(reason="Exercise 1 — return the route template in route_label")
 def test_an_unmatched_path_collapses_to_one_label_value(client, registry):
     """404s are cardinality arriving through the back door, sourced from strangers.
 
@@ -162,7 +160,6 @@ def test_buckets_are_sorted_and_bounded():
 # ── What the middleware measures ─────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_metrics_endpoint_does_not_count_itself(client, registry):
     """Prometheus scrapes forever. Counting the scrape puts the collector in
     your error budget and adds a permanent floor to every RPS graph."""
@@ -178,7 +175,6 @@ def test_metrics_endpoint_does_not_count_itself(client, registry):
     )
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_a_successful_prediction_moves_four_metrics(client, registry):
     """One request, four observations, and each answers a different question."""
     assert client.post("/predict", json=PROBE_PATIENT).status_code == 200
@@ -196,7 +192,6 @@ def test_a_successful_prediction_moves_four_metrics(client, registry):
     assert samples(registry, "model_prediction_score_count")[()] == 1
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_a_contract_violation_is_counted_by_check_name(client, registry):
     """Week 5's 422, aggregated — and NOT as a server error.
 
@@ -224,7 +219,6 @@ def test_a_contract_violation_is_counted_by_check_name(client, registry):
     )
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_in_flight_returns_to_zero(client, registry):
     """A gauge that is incremented in a `try` and decremented in a `finally`.
 
@@ -267,7 +261,6 @@ def test_no_label_value_is_none_shaped(client, registry):
 # ── The wire format ──────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_the_exposition_format_is_what_prometheus_expects(client):
     """A scrape endpoint that is 99% conformant fails on the one metric whose
     help text has a newline in it — which is why the body comes from the
@@ -291,7 +284,6 @@ def test_the_exposition_format_is_what_prometheus_expects(client):
     assert 'le="+Inf"' in body
 
 
-@pytest.mark.skip(reason="Exercise 1 — record the requests in metrics.py and api.py")
 def test_the_bucket_label_renders_the_declared_boundary_exactly(client, registry):
     """`le="0.25"` in the rules must match `le=` in the exposition, character
     for character. Prometheus compares label values as strings — `0.25` and

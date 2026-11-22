@@ -86,3 +86,10 @@ scrape_configs:
   # `up{job="diabetes-api"}` is 0. That is not a broken lab. It is the first
   # metric, the first alert, and the cheapest demonstration that a pull-based
   # collector has an opinion about whether your service exists at all.
+  - job_name: diabetes-api
+    metrics_path: /metrics
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: diabetes-api

@@ -150,8 +150,7 @@ def test_the_provider_points_at_the_directory_the_dashboards_are_mounted_in():
 
 # ── What the dashboard has to cover ──────────────────────────────────────────
 
-
-@pytest.mark.skip(reason="Exercise 3 — add the Predictions by outcome panel in Grafana")
+# @pytest.mark.skip(reason="Exercise 3 — add the Predictions by outcome panel in Grafana")
 def test_the_syllabus_panels_exist():
     """Latency, RPS and error rate are what the week promises. Assert them.
 
