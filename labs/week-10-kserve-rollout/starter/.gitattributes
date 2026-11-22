@@ -13,3 +13,4 @@
 # Belt and braces: the dataset generator also writes with lineterminator="\n",
 # so the DVC-tracked file is LF regardless of how git checked out its inputs.
 *.csv text eol=lf
+*.sh text eol=lf
